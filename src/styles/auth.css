@@ -30,7 +30,7 @@
 
 .auth-kicker {
   color: var(--accent-text);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -38,6 +38,7 @@
 }
 
 .auth-card h1 {
+  font-family: var(--font-heading);
   font-size: clamp(2.5rem, 7vw, 3.6rem);
   line-height: 0.9;
   letter-spacing: -0.06em;

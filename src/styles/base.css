@@ -40,6 +40,8 @@
 
   --transition: 0.15s ease;
   --transition-slow: 0.3s ease;
+  --font-heading: Helvetica, Arial, sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
 }
 
 *,
@@ -48,7 +50,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
 }
 
 html,
@@ -92,6 +94,7 @@ input,
 select,
 textarea {
   font: inherit;
+  font-family: var(--font-mono);
 }
 
 button {
@@ -167,7 +170,14 @@ a {
 .page-section h2,
 .view-title,
 .topbar-title,
-.brand-name {
+.brand-name,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
   letter-spacing: -0.04em;
   line-height: 1;
 }
@@ -240,7 +250,7 @@ select {
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-sm);
   padding: 10px 40px 10px 14px;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -264,7 +274,7 @@ select:focus {
 select option {
   background-color: #161616;
   color: var(--text-primary);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 14px;
   padding: 8px 14px;
 }
@@ -287,7 +297,7 @@ textarea {
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 400;
   width: 100%;

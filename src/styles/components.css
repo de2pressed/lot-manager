@@ -1,6 +1,6 @@
 .button,
 button {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -139,6 +139,7 @@ button:hover {
 
 .metric-card strong,
 .stat-value {
+  font-family: var(--font-heading);
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -172,6 +173,7 @@ button:hover {
 .panel-head h3,
 .glass-card-header h3,
 .card-title {
+  font-family: var(--font-heading);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -334,6 +336,7 @@ button:hover {
 
 .empty-state-title,
 .empty-state-card h3 {
+  font-family: var(--font-heading);
   font-size: 15px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -429,6 +432,7 @@ button:hover {
 .modal-head h2,
 .modal-title,
 .modal-header h3 {
+  font-family: var(--font-heading);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -562,6 +566,7 @@ button:hover {
   place-items: center;
   background: var(--accent-dim);
   color: var(--accent);
+  font-family: var(--font-mono);
   font-weight: 700;
 }
 
@@ -747,6 +752,7 @@ button:hover {
 
 .summary-product-header h4,
 .export-sheet-head h2 {
+  font-family: var(--font-heading);
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
