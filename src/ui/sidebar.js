@@ -16,6 +16,8 @@ function getRouteMeta(routeKey) {
 
 export function renderSidebar(activeRoute) {
   const routes = ROUTES.filter((route) => !route.adminOnly || state.currentRole === 'admin');
+  const username = state.currentProfile?.username || state.currentUser?.email || 'Unknown user';
+  const role = state.currentRole || 'viewer';
 
   return `
     <!-- Version marker: bump by 0.01 for every update to make UI changes easy to verify. -->
@@ -23,6 +25,14 @@ export function renderSidebar(activeRoute) {
       <p class="brand-kicker">Raptile Studio</p>
       <h1>Ops Hub</h1>
       <p class="brand-caption">Unified team operations</p>
+    </div>
+    <div class="sidebar-mobile-user">
+      <p class="sidebar-mobile-label">Signed in as</p>
+      <strong class="sidebar-mobile-email">${username}</strong>
+      <span class="sidebar-mobile-role">${role}</span>
+      <button class="button button-secondary sidebar-mobile-signout" type="button" data-sidebar-signout>
+        Sign Out
+      </button>
     </div>
     <nav class="sidebar-nav" aria-label="Primary navigation">
       ${routes
@@ -38,9 +48,9 @@ export function renderSidebar(activeRoute) {
         .join('')}
     </nav>
     <div class="sidebar-footer">
-      <span class="role-chip">${state.currentRole || 'viewer'}</span>
+      <span class="role-chip">${role}</span>
       <span class="live-chip">Realtime ready</span>
-      <span class="version-chip">v1.06</span>
+      <span class="version-chip">v1.07</span>
     </div>
   `;
 }

@@ -49,6 +49,7 @@ function renderShell() {
 
   app.innerHTML = `
     <div class="app-shell" id="app-shell">
+      <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close navigation"></button>
       <aside class="sidebar" id="app-sidebar"></aside>
       <main class="app-main">
         <header class="topbar">
@@ -131,9 +132,16 @@ function bindChromeEvents() {
   const sidebar = document.getElementById('app-sidebar');
   const signOutButton = document.getElementById('sign-out-button');
   const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
   const shell = document.getElementById('app-shell');
 
   const handleSidebarClick = (event) => {
+    if (event.target.closest('[data-sidebar-signout]')) {
+      handleSignOut();
+      shell?.classList.remove('sidebar-open');
+      return;
+    }
+
     const button = event.target.closest('[data-route]');
     if (!button) return;
 
@@ -154,14 +162,20 @@ function bindChromeEvents() {
     shell?.classList.toggle('sidebar-open');
   };
 
+  const handleBackdropClick = () => {
+    shell?.classList.remove('sidebar-open');
+  };
+
   sidebar?.addEventListener('click', handleSidebarClick);
   signOutButton?.addEventListener('click', handleSignOut);
   sidebarToggle?.addEventListener('click', handleToggle);
+  sidebarBackdrop?.addEventListener('click', handleBackdropClick);
 
   cleanupFns.push(
     () => sidebar?.removeEventListener('click', handleSidebarClick),
     () => signOutButton?.removeEventListener('click', handleSignOut),
-    () => sidebarToggle?.removeEventListener('click', handleToggle)
+    () => sidebarToggle?.removeEventListener('click', handleToggle),
+    () => sidebarBackdrop?.removeEventListener('click', handleBackdropClick)
   );
 }
 
