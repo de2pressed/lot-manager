@@ -451,21 +451,21 @@ function renderStandardRows(rows, canWrite) {
                   <td>${formatCurrency(item.buy_price)}</td>
                   <td><span class="status-badge status-${item.status}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
                   <td>${formatDate(item.date_added)}</td>
-                  <td>
+                  <td class="col-actions">
                     ${
                       canWrite
                         ? `
-                          <div class="table-actions">
-                            <button class="button button-ghost button-small" type="button" data-edit-inventory="${item.id}">Edit</button>
-                            <button class="button button-ghost button-small" type="button" data-sell-inventory="${item.id}" ${
+                          <div class="table-actions row-actions">
+                            <button class="btn btn-primary btn-sm btn-sell" type="button" data-id="${item.id}" data-sell-inventory="${item.id}" ${
                               item.status === 'sold_out' || item.status === 'defected' ? 'disabled' : ''
                             }>Sell</button>
+                            <button class="btn btn-ghost btn-sm btn-edit-inv" type="button" data-id="${item.id}" data-edit-inventory="${item.id}">Edit</button>
                             ${
                               item.status !== 'defected'
-                                ? `<div class="action-wrap"><button class="button button-ghost button-small" type="button" data-popover-trigger data-defect-inventory="${item.id}">&#9873; Defect</button></div>`
-                                : ''
+                                ? `<div class="action-wrap"><button class="btn btn-ghost btn-sm btn-defect" type="button" data-id="${item.id}" data-product="${escapeHtml(item.product_title)}" data-variant="${escapeHtml(item.variant_title)}" data-popover-trigger data-defect-inventory="${item.id}">&#9873; Defect</button></div>`
+                                : `<button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${item.id}" data-restore-defected="${item.id}">Restore</button>`
                             }
-                            <button class="button button-danger button-small" type="button" data-delete-inventory="${item.id}">Delete</button>
+                            <button class="btn btn-ghost btn-sm btn-delete-inv" type="button" data-id="${item.id}" data-delete-inventory="${item.id}">Delete</button>
                           </div>
                         `
                         : '&mdash;'
@@ -524,8 +524,8 @@ function renderDefectedRows(rows) {
                   <td class="buyer-name-cell ${defectReason ? '' : 'empty'}">
                     Defected ${defectDate}${defectReason ? ` &bull; ${escapeHtml(defectReason)}` : ''}
                   </td>
-                  <td>
-                    <button class="button button-secondary button-small" type="button" data-restore-defected="${item.id}">
+                  <td class="col-actions">
+                    <button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${item.id}" data-restore-defected="${item.id}">
                       Restore to Inventory
                     </button>
                   </td>
@@ -548,7 +548,7 @@ export async function renderInventoryView(container) {
   const defectedRows = rows.filter((item) => item.status === 'defected');
 
   container.innerHTML = `
-    <section class="page-section">
+    <section class="page-section inventory-view">
       <div class="page-header-block page-header-inline">
         <div>
           <p class="eyebrow">Stock On Hand</p>

@@ -279,10 +279,11 @@ function renderSoldRows() {
       <table class="data-table">
         <thead>
           <tr>
-            <th>
+            <th class="col-check">
               <input
                 type="checkbox"
                 class="row-check"
+                id="select-all-sold"
                 data-sale-select-all
                 ${allVisibleSelected ? 'checked' : ''}
               />
@@ -296,7 +297,7 @@ function renderSoldRows() {
             <th>Buy</th>
             <th>Sale</th>
             <th>Profit</th>
-            <th>Action</th>
+            <th class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -309,10 +310,11 @@ function renderSoldRows() {
 
               return `
                 <tr>
-                  <td>
+                  <td class="col-check">
                     <input
                       type="checkbox"
-                      class="row-check"
+                      class="row-check sold-row-check"
+                      data-sale-id="${sale.id}"
                       data-sale-select="${sale.id}"
                       ${selectedSaleIds.has(sale.id) ? 'checked' : ''}
                     />
@@ -330,9 +332,18 @@ function renderSoldRows() {
                   <td>${formatCurrency(sale.buy_price)}</td>
                   <td>${formatCurrency(sale.sale_price)}</td>
                   <td>${formatCurrency(profit)}</td>
-                  <td>
+                  <td class="col-actions">
                     <div class="action-wrap">
-                      <button class="button button-ghost button-small" type="button" data-popover-trigger data-sale-revert="${sale.id}">
+                      <button
+                        class="btn btn-ghost btn-sm btn-revert-sale"
+                        type="button"
+                        data-sale-id="${sale.id}"
+                        data-product="${escapeHtml(sale.product_title)}"
+                        data-variant="${escapeHtml(sale.variant_title)}"
+                        data-qty="${sale.qty_sold}"
+                        data-popover-trigger
+                        data-sale-revert="${sale.id}"
+                      >
                         Revert
                       </button>
                     </div>
@@ -395,7 +406,7 @@ export async function renderSalesView(container) {
   pruneSelectedSaleIds();
 
   container.innerHTML = `
-    <section class="page-section">
+    <section class="page-section sales-view">
       <div class="page-header-block page-header-inline">
         <div>
           <p class="eyebrow">Sales</p>
