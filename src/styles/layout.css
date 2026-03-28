@@ -1,6 +1,7 @@
 .app-shell {
   min-height: 100vh;
   display: block;
+  overflow-x: clip;
 }
 
 .sidebar {
@@ -165,13 +166,14 @@
 }
 
 .topbar {
-  height: 56px;
+  min-height: 56px;
   background: var(--bg-base);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  gap: 16px;
+  padding: 10px 28px;
   position: sticky;
   top: 0;
   z-index: 50;
@@ -183,6 +185,19 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
+}
+
+.topbar-left {
+  flex: 1 1 auto;
+}
+
+.topbar-left > div {
+  min-width: 0;
+}
+
+.topbar-actions {
+  flex: 0 0 auto;
 }
 
 .topbar-copy,
@@ -207,6 +222,7 @@
   display: grid;
   gap: 2px;
   min-width: 10rem;
+  min-width: 0;
 }
 
 .user-summary strong,
@@ -215,6 +231,10 @@
   font-weight: 500;
   color: var(--text-secondary);
   text-align: right;
+  max-width: min(26vw, 16rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-summary span,
@@ -236,6 +256,11 @@
 
 .topbar-menu {
   display: none !important;
+  white-space: nowrap;
+}
+
+#sign-out-button {
+  white-space: nowrap;
 }
 
 @media (max-width: 960px) {
@@ -265,14 +290,116 @@
   }
 
   .view-root {
-    padding: 20px 16px 28px;
+    padding: 18px 16px 24px;
   }
 
   .topbar {
-    padding: 0 16px;
+    padding: 12px 16px;
+    align-items: start;
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 
   .topbar-menu {
     display: inline-flex !important;
+  }
+
+  .topbar-left {
+    flex: 1 1 100%;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+
+  .user-summary strong,
+  .user-summary span {
+    text-align: left;
+  }
+
+  .user-summary strong {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .brand-lockup,
+  .sidebar-brand {
+    padding: 22px 16px 16px;
+  }
+
+  .sidebar-link,
+  .nav-item {
+    padding: 11px 16px;
+  }
+
+  .sidebar-footer {
+    padding: 14px 16px;
+    justify-content: flex-start;
+  }
+
+  .topbar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .topbar-copy {
+    display: none;
+  }
+
+  .topbar h1,
+  .topbar-title {
+    font-size: clamp(1.55rem, 7vw, 1.9rem);
+  }
+
+  .topbar-left {
+    gap: 10px;
+  }
+
+  .topbar-actions {
+    align-items: center;
+  }
+
+  .user-summary {
+    flex: 1 1 auto;
+  }
+
+  .user-summary strong {
+    font-size: 11px;
+  }
+
+  .user-summary span {
+    font-size: 8px;
+  }
+
+  .topbar-menu,
+  #sign-out-button {
+    min-height: 40px;
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+
+  .view-root {
+    padding: 14px 12px 20px;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar-actions {
+    flex-wrap: wrap;
+  }
+
+  .user-summary {
+    width: 100%;
+  }
+
+  #sign-out-button {
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -116,13 +116,13 @@ button:hover {
 @media (max-width: 640px) {
   .stats-grid,
   .metrics-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .dashboard-grid,
 .settings-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
 }
 
 .metric-card,
@@ -245,7 +245,9 @@ button:hover {
 }
 
 .table-card {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-card.nested,
@@ -730,6 +732,7 @@ button:hover {
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .product-card-copy {
@@ -1285,9 +1288,108 @@ button:hover {
 }
 
 @media (max-width: 640px) {
+  .stats-grid,
+  .metrics-grid,
+  .dashboard-grid,
+  .settings-grid,
+  .product-grid,
+  .lot-grid {
+    gap: 10px;
+  }
+
+  .stat-card,
+  .panel-card,
+  .glass-card,
+  .chart-card,
+  .product-card-body,
+  .lot-card,
+  .history-card,
+  .empty-state-card {
+    padding: 16px;
+  }
+
+  .stat-value,
+  .metric-card strong {
+    font-size: 22px;
+  }
+
+  .chart-header,
+  .panel-head,
+  .variant-editor-head,
+  .summary-product-header,
+  .export-sheet-head,
+  .card-row-between,
+  .lot-item-row {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .chart-subtitle,
+  .history-meta,
+  .lot-item-meta {
+    text-align: left;
+    justify-items: start;
+    justify-content: flex-start;
+  }
+
+  .chart-canvas-wrap,
+  .chart-wrap {
+    min-height: 170px;
+  }
+
+  .data-table {
+    min-width: 580px;
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+  }
+
+  .table-actions,
+  .card-actions,
+  .tab-row {
+    gap: 8px;
+  }
+
+  .tab-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tab-button {
+    justify-content: center;
+  }
+
+  .card-actions .button,
+  .table-actions .button {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+
+  .product-grid,
+  .lot-grid,
+  .dashboard-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-card-copy {
+    min-height: 0;
+    font-size: 12px;
+  }
+
+  .variant-editor-head {
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
   .modal-shell,
   .modal {
+    width: calc(100vw - 20px);
     max-height: 92vh;
+    border-radius: 18px;
   }
 
   .modal-head,
@@ -1306,8 +1408,61 @@ button:hover {
     flex-wrap: wrap;
   }
 
+  .modal-foot .button,
+  .modal-footer .button {
+    width: 100%;
+    justify-content: center;
+  }
+
   .field-grid,
   .form-grid-2 {
     grid-template-columns: 1fr;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid,
+  .metrics-grid,
+  .tab-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    padding: 14px;
+  }
+
+  .stat-value,
+  .metric-card strong {
+    font-size: 20px;
+  }
+
+  .data-table {
+    min-width: 520px;
+  }
+
+  .card-actions .button,
+  .table-actions .button {
+    flex-basis: 100%;
+  }
+
+  .product-card-body,
+  .lot-card,
+  .panel-card,
+  .chart-card,
+  .empty-state-card,
+  .history-card {
+    padding: 14px;
   }
 }

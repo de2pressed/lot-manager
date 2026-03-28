@@ -150,6 +150,7 @@ a {
 .page-section {
   display: grid;
   gap: 28px;
+  min-width: 0;
 }
 
 .page-header-block {
@@ -160,6 +161,7 @@ a {
 .page-header-inline {
   grid-template-columns: 1fr auto;
   align-items: end;
+  gap: 16px;
 }
 
 .eyebrow,
@@ -214,12 +216,17 @@ h6 {
   gap: 14px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .toolbar-search {
   display: grid;
   gap: 6px;
   min-width: min(20rem, 100%);
+}
+
+.toolbar-actions > * {
+  min-width: 0;
 }
 
 .toolbar-search span {
@@ -358,15 +365,62 @@ label {
 }
 
 @media (max-width: 720px) {
+  .page-section {
+    gap: 20px;
+  }
+
   .page-header-inline {
     grid-template-columns: 1fr;
   }
 
   .toolbar-actions {
     justify-content: stretch;
+    align-items: stretch;
   }
 
   .toolbar-search {
     min-width: 100%;
+  }
+
+  .toolbar-actions > * {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-section {
+    gap: 18px;
+  }
+
+  .page-header-block {
+    gap: 8px;
+  }
+
+  .page-section h2 {
+    font-size: clamp(1.9rem, 10vw, 2.45rem);
+    line-height: 0.96;
+  }
+
+  .page-copy,
+  .panel-copy,
+  .muted-copy,
+  .card-meta-line,
+  .history-card p {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .eyebrow,
+  .brand-eyebrow,
+  .topbar-eyebrow,
+  .view-eyebrow,
+  .sidebar-brand .brand-eyebrow,
+  .section-title {
+    font-size: 8px;
+    letter-spacing: 0.14em;
+  }
+
+  .loading-state {
+    min-height: 42vh;
   }
 }
