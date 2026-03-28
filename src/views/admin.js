@@ -18,25 +18,27 @@ function openCreateUserModal(container) {
 
   body.innerHTML = `
     <form class="modal-form" id="create-user-form">
-      <div class="field-grid">
-        <label class="field">
-          <span>Email</span>
-          <input id="admin-user-email" type="email" required />
-        </label>
-        <label class="field">
-          <span>Username</span>
-          <input id="admin-user-username" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input id="admin-user-password" type="password" required />
-        </label>
-        <label class="field">
-          <span>Role</span>
-          <select id="admin-user-role">
+      <div class="form-grid-2">
+        <div class="field-group">
+          <label class="field-label" for="new-email">Email</label>
+          <input type="email" id="new-email" autocomplete="off" placeholder="user@example.com" required />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="new-username">Username</label>
+          <input type="text" id="new-username" autocomplete="off" placeholder="team_member" required />
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="field-group">
+          <label class="field-label" for="new-password">Password</label>
+          <input type="password" id="new-password" autocomplete="new-password" placeholder="••••••••" required />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="new-role">Role</label>
+          <select id="new-role">
             ${ROLE_OPTIONS.map((role) => `<option value="${role}">${role}</option>`).join('')}
           </select>
-        </label>
+        </div>
       </div>
     </form>
   `;
@@ -58,10 +60,10 @@ function openCreateUserModal(container) {
         try {
           await createUserAccount(
             {
-              email: $('#admin-user-email', bodyTarget).value.trim(),
-              username: $('#admin-user-username', bodyTarget).value.trim(),
-              password: $('#admin-user-password', bodyTarget).value,
-              role: $('#admin-user-role', bodyTarget).value
+              email: $('#new-email', bodyTarget).value.trim(),
+              username: $('#new-username', bodyTarget).value.trim(),
+              password: $('#new-password', bodyTarget).value,
+              role: $('#new-role', bodyTarget).value
             },
             state.currentUser.id
           );

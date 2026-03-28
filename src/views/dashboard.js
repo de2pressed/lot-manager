@@ -114,6 +114,10 @@ function initCharts() {
     return;
   }
 
+  window.Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+  window.Chart.defaults.font.size = 11;
+  window.Chart.defaults.color = '#666666';
+
   const monthlyRevenue = buildMonthlyRevenue();
   const cumulativeProfit = buildCumulativeProfit();
   const topProducts = buildTopProducts();
@@ -130,9 +134,11 @@ function initCharts() {
             {
               label: 'Revenue',
               data: monthlyRevenue.map((entry) => entry.total),
-              backgroundColor: '#00e676aa',
+              backgroundColor: 'rgba(0, 230, 118, 0.20)',
               borderColor: '#00e676',
-              borderWidth: 1
+              borderWidth: 1.5,
+              borderRadius: 4,
+              borderSkipped: false
             }
           ]
         },
@@ -150,9 +156,12 @@ function initCharts() {
               label: 'Cumulative Profit',
               data: cumulativeProfit.map((entry) => entry.value),
               borderColor: '#3d9eff',
-              backgroundColor: 'rgba(61, 158, 255, 0.16)',
-              tension: 0.3,
-              fill: true
+              backgroundColor: 'rgba(61, 158, 255, 0.08)',
+              tension: 0.35,
+              fill: true,
+              pointRadius: 3,
+              pointBackgroundColor: '#3d9eff',
+              borderWidth: 1.5
             }
           ]
         },
@@ -169,9 +178,10 @@ function initCharts() {
             {
               label: 'Units Sold',
               data: topProducts.map((entry) => entry.value),
-              backgroundColor: '#f0a500bb',
+              backgroundColor: 'rgba(240, 165, 0, 0.20)',
               borderColor: '#f0a500',
-              borderWidth: 1
+              borderWidth: 1.5,
+              borderRadius: 4
             }
           ]
         },
@@ -190,19 +200,22 @@ function initCharts() {
           datasets: [
             {
               data: platformBreakdown.map((entry) => entry.value),
-              backgroundColor: ['#00e676', '#3d9eff', '#f0a500', '#ff4444', '#8a8a8a']
+              backgroundColor: [
+                'rgba(0, 230, 118, 0.7)',
+                'rgba(61, 158, 255, 0.7)',
+                'rgba(232, 160, 32, 0.7)',
+                'rgba(240, 62, 62, 0.7)',
+                'rgba(128, 128, 128, 0.5)'
+              ],
+              borderColor: '#080808',
+              borderWidth: 3
             }
           ]
         },
         options: {
           ...baseChartOptions(),
-          plugins: {
-            legend: {
-              labels: {
-                color: '#efefef'
-              }
-            }
-          }
+          cutout: '72%',
+          scales: {}
         }
       }
     }
@@ -221,33 +234,70 @@ function baseChartOptions() {
     maintainAspectRatio: false,
     plugins: {
       tooltip: {
-        backgroundColor: '#161616',
-        borderColor: 'rgba(255,255,255,0.10)',
+        backgroundColor: '#141414',
+        borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
-        titleColor: '#efefef',
-        bodyColor: '#efefef'
+        titleColor: '#f0f0f0',
+        bodyColor: '#808080',
+        padding: 10,
+        titleFont: {
+          family: "'DM Sans', sans-serif",
+          size: 12,
+          weight: '600'
+        },
+        bodyFont: {
+          family: "'DM Sans', sans-serif",
+          size: 11
+        },
+        cornerRadius: 8
       },
       legend: {
         labels: {
-          color: '#efefef'
+          color: '#666666',
+          font: {
+            family: "'DM Sans', sans-serif",
+            size: 11,
+            weight: '500'
+          },
+          boxWidth: 10,
+          boxHeight: 10,
+          padding: 16,
+          usePointStyle: true,
+          pointStyle: 'circle'
         }
       }
     },
     scales: {
       x: {
         ticks: {
-          color: '#8a8a8a'
+          color: '#555',
+          font: {
+            family: "'DM Sans', sans-serif",
+            size: 10
+          }
         },
         grid: {
-          color: 'rgba(255,255,255,0.05)'
+          color: 'rgba(255,255,255,0.04)',
+          drawBorder: false
+        },
+        border: {
+          display: false
         }
       },
       y: {
         ticks: {
-          color: '#8a8a8a'
+          color: '#555',
+          font: {
+            family: "'DM Sans', sans-serif",
+            size: 10
+          }
         },
         grid: {
-          color: 'rgba(255,255,255,0.05)'
+          color: 'rgba(255,255,255,0.04)',
+          drawBorder: false
+        },
+        border: {
+          display: false
         }
       }
     }
@@ -256,9 +306,9 @@ function baseChartOptions() {
 
 function metricCard(label, value, tone = '') {
   return `
-    <article class="metric-card ${tone}">
-      <span>${label}</span>
-      <strong>${value}</strong>
+    <article class="metric-card stat-card ${tone}">
+      <span class="stat-label">${label}</span>
+      <strong class="stat-value">${value}</strong>
     </article>
   `;
 }
@@ -276,7 +326,7 @@ export async function renderDashboardView(container) {
         </div>
       </div>
 
-      <div class="metrics-grid">
+      <div class="stats-grid">
         ${metricCard('Revenue', formatCurrency(metrics.totalRevenue))}
         ${metricCard('Cost', formatCurrency(metrics.totalCost))}
         ${metricCard('Profit', formatCurrency(metrics.totalProfit), 'success')}
@@ -288,36 +338,36 @@ export async function renderDashboardView(container) {
       </div>
 
       <div class="dashboard-grid">
-        <article class="panel-card">
-          <div class="panel-head">
-            <h3>Monthly Revenue</h3>
-            <span>Last 6 months</span>
+        <article class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Monthly Revenue</h3>
+            <span class="chart-subtitle">Last 6 months</span>
           </div>
-          <div class="chart-wrap"><canvas id="dashboard-revenue"></canvas></div>
+          <div class="chart-canvas-wrap"><canvas id="dashboard-revenue"></canvas></div>
         </article>
 
-        <article class="panel-card">
-          <div class="panel-head">
-            <h3>Cumulative Profit</h3>
-            <span>Across all recorded sales</span>
+        <article class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Cumulative Profit</h3>
+            <span class="chart-subtitle">Across all recorded sales</span>
           </div>
-          <div class="chart-wrap"><canvas id="dashboard-profit"></canvas></div>
+          <div class="chart-canvas-wrap"><canvas id="dashboard-profit"></canvas></div>
         </article>
 
-        <article class="panel-card">
-          <div class="panel-head">
-            <h3>Top Products</h3>
-            <span>By units sold</span>
+        <article class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Top Products</h3>
+            <span class="chart-subtitle">By units sold</span>
           </div>
-          <div class="chart-wrap"><canvas id="dashboard-top-products"></canvas></div>
+          <div class="chart-canvas-wrap"><canvas id="dashboard-top-products"></canvas></div>
         </article>
 
-        <article class="panel-card">
-          <div class="panel-head">
-            <h3>Platform Breakdown</h3>
-            <span>Units sold per channel</span>
+        <article class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Platform Breakdown</h3>
+            <span class="chart-subtitle">Units sold per channel</span>
           </div>
-          <div class="chart-wrap"><canvas id="dashboard-platforms"></canvas></div>
+          <div class="chart-canvas-wrap"><canvas id="dashboard-platforms"></canvas></div>
         </article>
       </div>
     </section>

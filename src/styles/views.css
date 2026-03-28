@@ -1,11 +1,37 @@
-.chart-wrap {
+.chart-wrap,
+.chart-canvas-wrap {
   position: relative;
-  min-height: 260px;
+  min-height: 200px;
 }
 
-.chart-wrap canvas {
+.chart-wrap canvas,
+.chart-canvas-wrap canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.chart-card {
+  min-height: 100%;
+}
+
+.chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.chart-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .panel-copy {
@@ -15,15 +41,6 @@
 
 .card-actions {
   margin-top: 2px;
-}
-
-.product-card-body h3,
-.lot-card h3,
-.panel-card h3,
-.table-card h3 {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
 }
 
 .product-card-copy,
@@ -58,7 +75,8 @@
 }
 
 @media (max-width: 720px) {
-  .chart-wrap {
+  .chart-wrap,
+  .chart-canvas-wrap {
     min-height: 220px;
   }
 }

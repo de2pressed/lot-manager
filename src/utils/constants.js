@@ -1,4 +1,4 @@
-export const ROLE_OPTIONS = ['admin', 'manager', 'ops', 'viewer'];
+export const ROLE_OPTIONS = ['viewer', 'ops', 'manager', 'admin'];
 
 export const SALE_PLATFORMS = ['Direct', 'Instagram DM', 'WhatsApp', 'Depop', 'Other'];
 

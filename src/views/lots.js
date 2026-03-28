@@ -58,6 +58,10 @@ function buildLotItemPayload(lot, product, variant, bodyTarget, existingItem = n
   };
 }
 
+function getRemainingCapacity(lot) {
+  return Math.max(0, Number(lot.max_items || 0) - getLotTotal(lot));
+}
+
 function openCreateLotModal() {
   const body = document.createElement('div');
   const footer = document.createElement('div');
@@ -111,7 +115,7 @@ function openCreateLotModal() {
   });
 }
 
-function openLotItemModal(lot, existingItem = null) {
+function openLegacyLotItemModal(lot, existingItem = null) {
   if (!state.products.length) {
     showToast('Sync or add products before adding lot items.', 'warning');
     return;
@@ -220,6 +224,303 @@ function openLotItemModal(lot, existingItem = null) {
   });
 }
 
+function openStagedLotItemModal(lot) {
+  if (!state.products.length) {
+    showToast('Sync or add products before adding lot items.', 'warning');
+    return;
+  }
+
+  const body = document.createElement('div');
+  const footer = document.createElement('div');
+  const remainingCapacity = getRemainingCapacity(lot);
+
+  body.innerHTML = `
+    <form class="modal-form" id="lot-item-form">
+      <div class="modal-meta">
+        Remaining capacity: <span class="capacity-count" id="lot-capacity-count">${remainingCapacity}</span>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="lot-product-select">Product</label>
+        <select id="lot-product-select">
+          <option value="">Select a product...</option>
+          ${state.products
+            .map(
+              (product) => `
+                <option value="${product.id}">
+                  ${escapeHtml(product.title)}
+                </option>
+              `
+            )
+            .join('')}
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="lot-buy-price">Buy Price</label>
+        <input id="lot-buy-price" type="number" min="0" step="0.01" placeholder="0.00" value="" />
+      </div>
+      <div id="variant-list" class="variant-list" hidden>
+        <div class="field-label" style="margin-bottom:10px">Variants - tap + to stage</div>
+        <div id="variant-rows" class="variant-rows"></div>
+      </div>
+      <div id="staged-wrap" class="staged-wrap" hidden>
+        <div class="field-label" style="margin-bottom:10px">Staged items</div>
+        <div id="staged-list" class="staged-list"></div>
+      </div>
+    </form>
+  `;
+
+  footer.innerHTML = `
+    <button class="button button-secondary" type="button" data-close-modal>Cancel</button>
+    <button class="button button-primary" id="confirm-add-lot" type="button" disabled>Add to Lot</button>
+  `;
+
+  openModal({
+    title: 'Add Lot Item',
+    description: 'Pick a product, stage one or more variants, then add them together.',
+    className: 'modal-lot-add',
+    body,
+    footer,
+    onOpen({ body: bodyTarget, close }) {
+      const staged = new Map();
+      const productSelect = $('#lot-product-select', bodyTarget);
+      const variantList = $('#variant-list', bodyTarget);
+      const variantRows = $('#variant-rows', bodyTarget);
+      const stagedWrap = $('#staged-wrap', bodyTarget);
+      const stagedList = $('#staged-list', bodyTarget);
+      const capacityCount = $('#lot-capacity-count', bodyTarget);
+      const buyPriceInput = $('#lot-buy-price', bodyTarget);
+      const confirmButton = $('#confirm-add-lot', footer);
+
+      const stagedUnits = () => Array.from(staged.values()).reduce((total, item) => total + item.qty, 0);
+      const capacityLeft = () => Math.max(0, remainingCapacity - stagedUnits());
+      const stageKeyFor = (productId, variant) => `${productId}::${variant.id ?? buildVariantTitle(variant)}`;
+
+      const syncVariantButtons = () => {
+        $$('[data-stage-key]', bodyTarget).forEach((button) => {
+          const key = button.dataset.stageKey;
+          const item = staged.get(key);
+          button.textContent = item ? `${item.qty}` : '+';
+          button.classList.toggle('is-staged', Boolean(item));
+        });
+      };
+
+      const renderStaged = () => {
+        if (!staged.size) {
+          stagedWrap.hidden = true;
+          confirmButton.disabled = true;
+          capacityCount.textContent = `${capacityLeft()}`;
+          syncVariantButtons();
+          return;
+        }
+
+        stagedWrap.hidden = false;
+        confirmButton.disabled = false;
+        capacityCount.textContent = `${capacityLeft()}`;
+        stagedList.innerHTML = [...staged.values()]
+          .map(
+            (item) => `
+              <div class="staged-row" data-stage-key="${item.stageKey}">
+                <div class="staged-info">
+                  <span class="staged-product">${escapeHtml(item.productTitle)}</span>
+                  <span class="staged-variant">${escapeHtml(item.variantTitle)}</span>
+                </div>
+                <div class="staged-controls">
+                  <button class="qty-btn" type="button" data-stage-key="${item.stageKey}" data-action="dec">−</button>
+                  <span class="qty-value">${item.qty}</span>
+                  <button class="qty-btn" type="button" data-stage-key="${item.stageKey}" data-action="inc">+</button>
+                  <button class="staged-remove" type="button" data-stage-key="${item.stageKey}">✕</button>
+                </div>
+              </div>
+            `
+          )
+          .join('');
+        syncVariantButtons();
+      };
+
+      const renderVariants = (productId) => {
+        const product = state.products.find((entry) => entry.id === productId);
+        if (!product) {
+          variantList.hidden = true;
+          variantRows.innerHTML = '';
+          return;
+        }
+
+        const variants = getProductVariants(product);
+        variantRows.innerHTML = variants
+          .map(
+            (variant) => `
+              <div class="variant-row">
+                <div class="variant-info">
+                  <span class="variant-title">${escapeHtml(buildVariantTitle(variant))}</span>
+                  ${variant.sku ? `<span class="variant-sku">${escapeHtml(variant.sku)}</span>` : ''}
+                </div>
+                <button
+                  class="btn-add-variant"
+                  type="button"
+                  data-stage-key="${stageKeyFor(product.id, variant)}"
+                  data-product-id="${product.id}"
+                  data-product-title="${escapeHtml(product.title)}"
+                  data-variant-id="${variant.id ?? ''}"
+                  data-variant-title="${escapeHtml(buildVariantTitle(variant))}"
+                  data-color="${escapeHtml(variant.color || '')}"
+                  data-size="${escapeHtml(variant.size || '')}"
+                  data-sku="${escapeHtml(variant.sku || '')}"
+                  data-shopify-product-id="${escapeHtml(product.shopify_product_id || '')}"
+                >
+                  +
+                </button>
+              </div>
+            `
+          )
+          .join('');
+        variantList.hidden = false;
+        syncVariantButtons();
+      };
+
+      const syncCapacity = () => {
+        capacityCount.textContent = `${capacityLeft()}`;
+      };
+
+      productSelect.addEventListener('change', () => {
+        if (productSelect.value) {
+          renderVariants(productSelect.value);
+        } else {
+          variantList.hidden = true;
+          variantRows.innerHTML = '';
+        }
+      });
+
+      bodyTarget.addEventListener('click', async (event) => {
+        const addButton = event.target.closest('.btn-add-variant');
+        if (addButton) {
+          const stageKey = addButton.dataset.stageKey;
+          const existing = staged.get(stageKey);
+
+          if (!existing && capacityLeft() <= 0) {
+            showToast('This lot is at capacity.', 'warning');
+            return;
+          }
+
+          if (existing) {
+            if (capacityLeft() <= 0) {
+              showToast('This lot is at capacity.', 'warning');
+              return;
+            }
+
+            existing.qty += 1;
+            addButton.classList.add('btn-shake');
+            addButton.textContent = `${existing.qty}`;
+            setTimeout(() => addButton.classList.remove('btn-shake'), 350);
+          } else {
+            staged.set(stageKey, {
+              stageKey,
+              productId: addButton.dataset.productId,
+              productTitle: addButton.dataset.productTitle,
+              shopifyProductId: addButton.dataset.shopifyProductId || null,
+              variantId: addButton.dataset.variantId || null,
+              variantTitle: addButton.dataset.variantTitle,
+              color: addButton.dataset.color || null,
+              size: addButton.dataset.size || null,
+              sku: addButton.dataset.sku || null,
+              qty: 1,
+              buyPrice: Number(buyPriceInput.value || 0),
+            });
+            addButton.classList.add('btn-shake');
+            addButton.textContent = '1';
+            setTimeout(() => addButton.classList.remove('btn-shake'), 350);
+          }
+
+          renderStaged();
+          return;
+        }
+
+        const qtyButton = event.target.closest('.qty-btn');
+        if (qtyButton) {
+          const item = staged.get(qtyButton.dataset.stageKey);
+          if (!item) return;
+
+          if (qtyButton.dataset.action === 'inc') {
+            if (capacityLeft() <= 0) {
+              showToast('This lot is at capacity.', 'warning');
+              return;
+            }
+
+            item.qty += 1;
+          } else if (qtyButton.dataset.action === 'dec') {
+            item.qty -= 1;
+            if (item.qty <= 0) {
+              staged.delete(item.stageKey);
+            }
+          }
+
+          renderStaged();
+          return;
+        }
+
+        const removeButton = event.target.closest('.staged-remove');
+        if (removeButton) {
+          staged.delete(removeButton.dataset.stageKey);
+          renderStaged();
+          return;
+        }
+
+      });
+
+      footer.addEventListener('click', async (event) => {
+        const confirmAdd = event.target.closest('#confirm-add-lot');
+        if (!confirmAdd) return;
+        if (!staged.size) return;
+
+        try {
+          const items = [...staged.values()];
+          await Promise.all(
+            items.map((item) =>
+              addLotItem(
+                {
+                  lot_id: lot.id,
+                  product_id: item.productId,
+                  shopify_product_id: item.shopifyProductId || null,
+                  product_title: item.productTitle,
+                  variant_title: item.variantTitle,
+                  variant_id: item.variantId,
+                  color: item.color,
+                  size: item.size,
+                  sku: item.sku,
+                  qty: item.qty,
+                  buy_price: Number(buyPriceInput.value || item.buyPrice || 0)
+                },
+                state.currentUser.id
+              )
+            )
+          );
+
+          showToast(
+            `${items.length} variant${items.length === 1 ? '' : 's'} added to lot.`,
+            'success'
+          );
+          close('saved');
+          renderLotsView(document.getElementById('view-root'));
+        } catch (error) {
+          showToast(error.message || 'Unable to add lot items.', 'error');
+        }
+      });
+
+      productSelect.addEventListener('change', syncCapacity);
+      buyPriceInput.addEventListener('input', syncCapacity);
+      renderStaged();
+    }
+  });
+}
+
+function openLotItemModal(lot, existingItem = null) {
+  if (existingItem) {
+    openLegacyLotItemModal(lot, existingItem);
+    return;
+  }
+
+  openStagedLotItemModal(lot);
+}
+
 async function exportLotSummary(lot) {
   if (typeof window.html2canvas === 'undefined') {
     showToast('html2canvas is not available in this session.', 'error');
@@ -278,7 +579,7 @@ async function exportLotSummary(lot) {
 
   try {
     const canvas = await window.html2canvas(node, {
-      backgroundColor: '#0a0a0a',
+      backgroundColor: '#080808',
       scale: 2
     });
 
