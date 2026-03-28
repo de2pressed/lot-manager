@@ -8,18 +8,38 @@ import {
   inputDateToIso,
   toInputDate
 } from '../utils/format.js';
-import { SALE_PLATFORMS } from '../utils/constants.js';
+import { SALE_PLATFORMS, INVENTORY_STATUS_LABELS } from '../utils/constants.js';
 import { buildVariantTitle, findVariant, getProductVariants } from '../utils/products.js';
 import { confirmModal, openModal } from '../ui/modal.js';
 import { showToast } from '../ui/toast.js';
 import {
   createInventoryItem,
   deleteInventoryItem,
-  updateInventoryItem
+  updateInventoryItem,
+  markDefected,
+  revertDefected
 } from '../services/inventory.service.js';
 import { recordSale } from '../services/sales.service.js';
 
 let searchTerm = '';
+let inventoryTab = 'all';
+let popoverListenerBound = false;
+
+function closeAllPopovers() {
+  document.querySelectorAll('.inline-popover').forEach((popover) => popover.remove());
+}
+
+function ensurePopoverDismissal() {
+  if (popoverListenerBound) return;
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.inline-popover') && !event.target.closest('[data-popover-trigger]')) {
+      closeAllPopovers();
+    }
+  });
+
+  popoverListenerBound = true;
+}
 
 function openInventoryModal(item = null) {
   const body = document.createElement('div');
@@ -239,6 +259,13 @@ function openSellModal(item) {
             ${SALE_PLATFORMS.map((platform) => `<option value="${platform}">${platform}</option>`).join('')}
           </select>
         </label>
+        <label class="field full">
+          <span>
+            Buyer Name
+            <span class="field-optional">optional</span>
+          </span>
+          <input id="inventory-sell-buyer-name" autocomplete="off" placeholder="e.g. Rahul S." />
+        </label>
         <label class="field">
           <span>Date Sold</span>
           <input id="inventory-sell-date" type="date" value="${toInputDate()}" required />
@@ -273,7 +300,8 @@ function openSellModal(item) {
               qtySold: Number($('#inventory-sell-qty', bodyTarget).value),
               platform: $('#inventory-sell-platform', bodyTarget).value,
               dateSold: inputDateToIso($('#inventory-sell-date', bodyTarget).value),
-              notes: $('#inventory-sell-notes', bodyTarget).value.trim()
+              notes: $('#inventory-sell-notes', bodyTarget).value.trim(),
+              buyerName: $('#inventory-sell-buyer-name', bodyTarget).value.trim()
             },
             state.currentUser.id
           );
@@ -289,12 +317,235 @@ function openSellModal(item) {
   });
 }
 
-export async function renderInventoryView(container) {
-  const canWrite = hasRole(['admin', 'manager']);
-  const rows = state.inventory.filter((item) => {
-    const haystack = `${item.product_title} ${item.variant_title} ${item.sku || ''} ${item.status || ''}`.toLowerCase();
+function openDefectPopover(trigger, item) {
+  closeAllPopovers();
+
+  const wrap = trigger.closest('.action-wrap');
+  if (!wrap) return;
+
+  const popover = document.createElement('div');
+  popover.className = 'inline-popover';
+  popover.dataset.inventoryPopover = item.id;
+  popover.innerHTML = `
+    <div class="popover-title">Mark as defected?</div>
+    <div class="popover-desc">Reason is optional. Defected items will be excluded from active inventory and sales.</div>
+    <div class="field-group" style="margin-bottom: 12px;">
+      <label class="field-label" for="defect-reason-${item.id}">Reason (optional)</label>
+      <input id="defect-reason-${item.id}" type="text" autocomplete="off" placeholder="e.g. print misaligned" />
+    </div>
+    <div class="popover-actions">
+      <button class="button button-secondary button-small" type="button" data-defect-cancel>Cancel</button>
+      <button class="button button-danger button-small" type="button" data-defect-confirm>Mark Defected</button>
+    </div>
+  `;
+
+  popover.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-defect-cancel]')) {
+      popover.remove();
+      return;
+    }
+
+    if (!event.target.closest('[data-defect-confirm]')) {
+      return;
+    }
+
+    try {
+      const reason = $(`#defect-reason-${item.id}`, popover)?.value.trim() || '';
+      await markDefected(item.id, state.currentUser.id, reason);
+      popover.remove();
+      showToast('Item marked as defected.', 'success');
+      renderInventoryView(document.getElementById('view-root'));
+    } catch (error) {
+      showToast(error.message || 'Unable to mark item as defected.', 'error');
+    }
+  });
+
+  wrap.append(popover);
+}
+
+function getTabCounts() {
+  return state.inventory.reduce(
+    (counts, item) => {
+      counts.all += 1;
+      if (item.status === 'in_stock') counts.in_stock += 1;
+      if (item.status === 'low_stock') counts.low_stock += 1;
+      if (item.status === 'sold_out') counts.sold_out += 1;
+      if (item.status === 'defected') counts.defected += 1;
+      return counts;
+    },
+    { all: 0, in_stock: 0, low_stock: 0, sold_out: 0, defected: 0 }
+  );
+}
+
+function getFilteredInventory() {
+  const baseRows =
+    inventoryTab === 'all'
+      ? state.inventory
+      : state.inventory.filter((item) => item.status === inventoryTab);
+
+  return baseRows.filter((item) => {
+    const haystack = `${item.product_title} ${item.variant_title} ${item.sku || ''} ${item.status || ''} ${item.defect_reason || ''}`.toLowerCase();
     return haystack.includes(searchTerm.toLowerCase());
   });
+}
+
+function renderInventoryTabs(counts) {
+  const tabs = [
+    { key: 'all', label: 'All', count: counts.all },
+    { key: 'in_stock', label: INVENTORY_STATUS_LABELS.in_stock, count: counts.in_stock },
+    { key: 'low_stock', label: INVENTORY_STATUS_LABELS.low_stock, count: counts.low_stock },
+    { key: 'sold_out', label: INVENTORY_STATUS_LABELS.sold_out, count: counts.sold_out },
+    { key: 'defected', label: INVENTORY_STATUS_LABELS.defected, count: counts.defected }
+  ];
+
+  return `
+    <div class="tab-row">
+      ${tabs
+        .map(
+          (tab) => `
+            <button class="tab-button ${inventoryTab === tab.key ? 'is-active' : ''}" data-inventory-tab="${tab.key}">
+              ${tab.label}
+              <span class="tab-badge ${tab.key === 'defected' && tab.count ? 'tab-badge-defected' : ''}">${tab.count}</span>
+            </button>
+          `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
+function renderStandardRows(rows, canWrite) {
+  return `
+    <div class="table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Variant</th>
+            <th>SKU</th>
+            <th>Qty</th>
+            <th>Buy</th>
+            <th>Status</th>
+            <th>Date Added</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (item) => `
+                <tr>
+                  <td>
+                    <div>
+                      <div>${escapeHtml(item.product_title)}</div>
+                      ${
+                        item.status === 'defected'
+                          ? '<div><span class="badge-defected">Defected</span></div>'
+                          : ''
+                      }
+                    </div>
+                  </td>
+                  <td>${escapeHtml(item.variant_title)}</td>
+                  <td>${item.sku ? escapeHtml(item.sku) : '&mdash;'}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatCurrency(item.buy_price)}</td>
+                  <td><span class="status-badge status-${item.status}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
+                  <td>${formatDate(item.date_added)}</td>
+                  <td>
+                    ${
+                      canWrite
+                        ? `
+                          <div class="table-actions">
+                            <button class="button button-ghost button-small" type="button" data-edit-inventory="${item.id}">Edit</button>
+                            <button class="button button-ghost button-small" type="button" data-sell-inventory="${item.id}" ${
+                              item.status === 'sold_out' || item.status === 'defected' ? 'disabled' : ''
+                            }>Sell</button>
+                            ${
+                              item.status !== 'defected'
+                                ? `<div class="action-wrap"><button class="button button-ghost button-small" type="button" data-popover-trigger data-defect-inventory="${item.id}">&#9873; Defect</button></div>`
+                                : ''
+                            }
+                            <button class="button button-danger button-small" type="button" data-delete-inventory="${item.id}">Delete</button>
+                          </div>
+                        `
+                        : '&mdash;'
+                    }
+                  </td>
+                </tr>
+              `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderDefectedRows(rows) {
+  if (!rows.length) {
+    return `
+      <div class="empty-state-card">
+        <h3>No defected inventory</h3>
+        <p>Items marked as defected will appear here until they are restored back to stock.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Variant</th>
+            <th>SKU</th>
+            <th>Qty</th>
+            <th>Defected</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map((item) => {
+              const defectDate = item.defected_at ? formatDate(item.defected_at) : '&mdash;';
+              const defectReason = item.defect_reason?.trim();
+
+              return `
+                <tr>
+                  <td>
+                    <div>
+                      <div>${escapeHtml(item.product_title)}</div>
+                      <div><span class="badge-defected">Defected</span></div>
+                    </div>
+                  </td>
+                  <td>${escapeHtml(item.variant_title)}</td>
+                  <td>${item.sku ? escapeHtml(item.sku) : '&mdash;'}</td>
+                  <td>${item.quantity}</td>
+                  <td class="buyer-name-cell ${defectReason ? '' : 'empty'}">
+                    Defected ${defectDate}${defectReason ? ` &bull; ${escapeHtml(defectReason)}` : ''}
+                  </td>
+                  <td>
+                    <button class="button button-secondary button-small" type="button" data-restore-defected="${item.id}">
+                      Restore to Inventory
+                    </button>
+                  </td>
+                </tr>
+              `;
+            })
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+export async function renderInventoryView(container) {
+  ensurePopoverDismissal();
+
+  const canWrite = hasRole(['admin', 'manager']);
+  const counts = getTabCounts();
+  const rows = getFilteredInventory();
+  const defectedRows = rows.filter((item) => item.status === 'defected');
 
   container.innerHTML = `
     <section class="page-section">
@@ -313,62 +564,17 @@ export async function renderInventoryView(container) {
         </div>
       </div>
 
+      ${renderInventoryTabs(counts)}
+
       ${
         rows.length
-          ? `
-            <div class="table-card">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Variant</th>
-                    <th>SKU</th>
-                    <th>Qty</th>
-                    <th>Buy</th>
-                    <th>Status</th>
-                    <th>Date Added</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rows
-                    .map(
-                      (item) => `
-                        <tr>
-                          <td>${escapeHtml(item.product_title)}</td>
-                          <td>${escapeHtml(item.variant_title)}</td>
-                          <td>${escapeHtml(item.sku || '—')}</td>
-                          <td>${item.quantity}</td>
-                          <td>${formatCurrency(item.buy_price)}</td>
-                          <td><span class="status-badge status-${item.status}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
-                          <td>${formatDate(item.date_added)}</td>
-                          <td>
-                            ${
-                              canWrite
-                                ? `
-                                  <div class="table-actions">
-                                    <button class="button button-ghost button-small" type="button" data-edit-inventory="${item.id}">Edit</button>
-                                    <button class="button button-ghost button-small" type="button" data-sell-inventory="${item.id}" ${
-                                      item.status === 'sold_out' ? 'disabled' : ''
-                                    }>Sell</button>
-                                    <button class="button button-danger button-small" type="button" data-delete-inventory="${item.id}">Delete</button>
-                                  </div>
-                                `
-                                : '—'
-                            }
-                          </td>
-                        </tr>
-                      `
-                    )
-                    .join('')}
-                </tbody>
-              </table>
-            </div>
-          `
+          ? inventoryTab === 'defected'
+            ? renderDefectedRows(defectedRows)
+            : renderStandardRows(rows, canWrite)
           : `
             <div class="empty-state-card">
-              <h3>No inventory yet</h3>
-              <p>Push a lot or add a manual inventory row to start tracking stock.</p>
+              <h3>No inventory found</h3>
+              <p>Try another search or add a new inventory row to begin tracking stock.</p>
             </div>
           `
       }
@@ -381,6 +587,14 @@ export async function renderInventoryView(container) {
   });
 
   $('#inventory-add-button', container)?.addEventListener('click', () => openInventoryModal());
+
+  $$('[data-inventory-tab]', container).forEach((button) => {
+    button.addEventListener('click', () => {
+      inventoryTab = button.dataset.inventoryTab;
+      closeAllPopovers();
+      renderInventoryView(container);
+    });
+  });
 
   $$('[data-edit-inventory]', container).forEach((button) => {
     button.addEventListener('click', () => {
@@ -396,6 +610,30 @@ export async function renderInventoryView(container) {
       const item = state.inventory.find((entry) => entry.id === button.dataset.sellInventory);
       if (item) {
         openSellModal(item);
+      }
+    });
+  });
+
+  $$('[data-defect-inventory]', container).forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = state.inventory.find((entry) => entry.id === button.dataset.defectInventory);
+      if (item) {
+        openDefectPopover(button, item);
+      }
+    });
+  });
+
+  $$('[data-restore-defected]', container).forEach((button) => {
+    button.addEventListener('click', async () => {
+      const item = state.inventory.find((entry) => entry.id === button.dataset.restoreDefected);
+      if (!item) return;
+
+      try {
+        await revertDefected(item.id, state.currentUser.id);
+        showToast('Item restored to inventory.', 'success');
+        renderInventoryView(container);
+      } catch (error) {
+        showToast(error.message || 'Unable to restore defected item.', 'error');
       }
     });
   });

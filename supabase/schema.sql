@@ -67,9 +67,12 @@ create table public.inventory (
   sku text,
   buy_price numeric(10,2) not null default 0,
   quantity integer not null default 0,
-  status text not null default 'in_stock' check (status in ('in_stock', 'low_stock', 'sold_out')),
+  status text not null default 'in_stock' check (status in ('in_stock', 'low_stock', 'sold_out', 'defected')),
   notes text,
   date_added timestamptz default now(),
+  defected_at timestamptz,
+  defected_by uuid references auth.users(id),
+  defect_reason text,
   created_by uuid references auth.users(id),
   updated_at timestamptz default now()
 );
@@ -91,6 +94,7 @@ create table public.sales (
   ),
   date_sold timestamptz default now(),
   notes text,
+  buyer_name text,
   created_by uuid references auth.users(id)
 );
 
@@ -152,6 +156,10 @@ create trigger lot_items_capacity after insert or update or delete on public.lot
 create or replace function update_inventory_status()
 returns trigger as $$
 begin
+  if new.status = 'defected' then
+    return new;
+  end if;
+
   if new.quantity <= 0 then
     new.status := 'sold_out';
   elsif new.quantity <= 3 then

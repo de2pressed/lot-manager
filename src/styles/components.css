@@ -246,7 +246,7 @@ button:hover {
 
 .table-card {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -356,6 +356,13 @@ button:hover {
   border-color: var(--border);
 }
 
+.badge-defected,
+.status-defected {
+  background: rgba(240, 62, 62, 0.08);
+  color: var(--danger);
+  border-color: rgba(240, 62, 62, 0.18);
+}
+
 .badge-info {
   background: var(--info-dim);
   color: var(--info);
@@ -369,6 +376,109 @@ button:hover {
   border-radius: 50%;
   background: currentColor;
   animation: pulse 1.4s ease-in-out infinite;
+}
+
+.buyer-name-cell {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.buyer-name-cell.empty {
+  color: var(--text-muted);
+}
+
+.action-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.inline-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 200;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  width: 260px;
+  box-shadow: var(--shadow-md);
+  animation: popover-in 0.15s ease;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popover-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.popover-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.popover-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.batch-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-mid);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: slide-up 0.18s ease;
+  z-index: 10;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.batch-bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.batch-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.row-check {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 @keyframes pulse {
@@ -416,6 +526,20 @@ button:hover {
   border-color: rgba(0, 230, 118, 0.3);
   background: var(--accent-dim);
   color: var(--accent);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  margin-left: 6px;
+}
+
+.tab-badge-defected {
+  background: var(--danger-dim);
+  color: var(--danger);
+  border-color: rgba(240, 62, 62, 0.2);
 }
 
 .field-grid,

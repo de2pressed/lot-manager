@@ -17,13 +17,14 @@ function getMetrics() {
   const totalCost = sumBy(state.sales, (sale) => Number(sale.buy_price || 0) * Number(sale.qty_sold || 0));
   const totalProfit = totalRevenue - totalCost;
   const profitMargin = totalRevenue ? (totalProfit / totalRevenue) * 100 : 0;
+  const activeInventory = state.inventory.filter((item) => item.status !== 'defected');
   const unitsInStock = sumBy(
-    state.inventory.filter((item) => item.status !== 'sold_out'),
+    activeInventory.filter((item) => item.status !== 'sold_out'),
     (item) => Number(item.quantity || 0)
   );
   const unitsSold = sumBy(state.sales, (sale) => Number(sale.qty_sold || 0));
   const activeLots = state.lots.filter((lot) => lot.status !== 'pushed').length;
-  const lowStockAlerts = state.inventory.filter((item) => item.status === 'low_stock').length;
+  const lowStockAlerts = activeInventory.filter((item) => item.status === 'low_stock').length;
 
   return {
     totalRevenue,

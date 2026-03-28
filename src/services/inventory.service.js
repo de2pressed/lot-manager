@@ -83,3 +83,81 @@ export async function deleteInventoryItem(inventoryId, userId) {
     refType: 'inventory'
   });
 }
+
+/**
+ * Mark one inventory item as defected.
+ * @param {string} inventoryId
+ * @param {string} userId
+ * @param {string} [reason] - optional reason text
+ */
+export async function markDefected(inventoryId, userId, reason = '') {
+  const { data, error } = await supabase
+    .from('inventory')
+    .update({
+      status: 'defected',
+      defected_at: new Date().toISOString(),
+      defected_by: userId,
+      defect_reason: reason || null
+    })
+    .eq('id', inventoryId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+
+  state.upsertCollectionRow('inventory', data);
+
+  await logActivity({
+    userId,
+    type: 'item_defected',
+    description: `Item marked as defected${reason ? ': ' + reason : ''}`,
+    refId: inventoryId,
+    refType: 'inventory'
+  });
+
+  return data;
+}
+
+/**
+ * Revert a defected item back to active inventory.
+ * Recalculates status from current quantity.
+ */
+export async function revertDefected(inventoryId, userId) {
+  const { data: item } = await supabase
+    .from('inventory')
+    .select('quantity, product_title, variant_title')
+    .eq('id', inventoryId)
+    .single();
+
+  if (!item) throw new Error('Item not found');
+
+  let status = 'in_stock';
+  if (item.quantity <= 0) status = 'sold_out';
+  else if (item.quantity <= 3) status = 'low_stock';
+
+  const { data, error } = await supabase
+    .from('inventory')
+    .update({
+      status,
+      defected_at: null,
+      defected_by: null,
+      defect_reason: null
+    })
+    .eq('id', inventoryId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+
+  state.upsertCollectionRow('inventory', data);
+
+  await logActivity({
+    userId,
+    type: 'defect_reverted',
+    description: `Defected item restored to inventory: ${item.product_title} — ${item.variant_title}`,
+    refId: inventoryId,
+    refType: 'inventory'
+  });
+
+  return data;
+}

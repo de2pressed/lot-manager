@@ -13,7 +13,7 @@ export async function fetchSales() {
 }
 
 export async function recordSale(
-  { inventoryId, salePrice, qtySold, platform, dateSold, notes = '' },
+  { inventoryId, salePrice, qtySold, platform, dateSold, notes = '', buyerName = '' },
   userId
 ) {
   const { data: inventoryRow, error: inventoryError } = await supabase
@@ -26,6 +26,10 @@ export async function recordSale(
 
   if (!inventoryRow) {
     throw new Error('Inventory item not found.');
+  }
+
+  if (inventoryRow.status === 'defected') {
+    throw new Error('Defected items cannot be sold.');
   }
 
   if (Number(qtySold || 0) < 1 || Number(qtySold || 0) > Number(inventoryRow.quantity || 0)) {
@@ -46,6 +50,7 @@ export async function recordSale(
       platform,
       date_sold: dateSold,
       notes,
+      buyer_name: buyerName || null,
       created_by: userId
     })
     .select()
@@ -77,4 +82,69 @@ export async function recordSale(
   });
 
   return sale;
+}
+
+export async function revertSales(saleIds, userId) {
+  const ids = Array.from(new Set((saleIds || []).filter(Boolean)));
+  if (!ids.length) {
+    return 0;
+  }
+
+  const { data: sales, error: fetchErr } = await supabase
+    .from('sales')
+    .select('id, inventory_id, product_title, variant_title, qty_sold')
+    .in('id', ids);
+
+  if (fetchErr) throw fetchErr;
+  if (!sales?.length) {
+    return 0;
+  }
+
+  const restoreMap = new Map();
+  for (const sale of sales) {
+    if (!sale.inventory_id) continue;
+    const prev = restoreMap.get(sale.inventory_id) || 0;
+    restoreMap.set(sale.inventory_id, prev + Number(sale.qty_sold || 0));
+  }
+
+  for (const [inventoryId, qty] of restoreMap.entries()) {
+    const { data: inv } = await supabase
+      .from('inventory')
+      .select('id, quantity')
+      .eq('id', inventoryId)
+      .maybeSingle();
+
+    if (!inv) continue;
+
+    const { data: updatedInventory, error: updateErr } = await supabase
+      .from('inventory')
+      .update({ quantity: Number(inv.quantity || 0) + qty })
+      .eq('id', inventoryId)
+      .select('*')
+      .single();
+
+    if (updateErr) throw updateErr;
+    if (updatedInventory) {
+      state.upsertCollectionRow('inventory', updatedInventory);
+    }
+  }
+
+  const { error: deleteErr } = await supabase
+    .from('sales')
+    .delete()
+    .in('id', ids);
+
+  if (deleteErr) throw deleteErr;
+
+  sales.forEach((sale) => state.removeCollectionRow('sales', sale.id));
+
+  const label = sales.map((sale) => `${sale.product_title} — ${sale.variant_title}`).join(', ');
+  await logActivity({
+    userId,
+    type: 'sale_reverted',
+    description: `Reverted ${ids.length} sale${ids.length > 1 ? 's' : ''}: ${label}`,
+    refType: 'sale'
+  });
+
+  return ids.length;
 }

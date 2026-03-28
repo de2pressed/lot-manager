@@ -11,5 +11,6 @@ export const LOT_STATUS_LABELS = {
 export const INVENTORY_STATUS_LABELS = {
   in_stock: 'In Stock',
   low_stock: 'Low Stock',
-  sold_out: 'Sold Out'
+  sold_out: 'Sold Out',
+  defected: 'Defected'
 };

@@ -24,6 +24,7 @@ function exportSalesCsv() {
     Date: sale.date_sold,
     Product: sale.product_title,
     Variant: sale.variant_title,
+    Buyer: sale.buyer_name || '',
     Platform: sale.platform || 'Direct',
     'Buy Price': sale.buy_price,
     'Sale Price': sale.sale_price,
