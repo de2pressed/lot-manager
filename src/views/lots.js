@@ -629,8 +629,8 @@ function renderLotCard(lot) {
   const progress = Math.min(100, (total / Number(lot.max_items || 1)) * 100);
   const displayedStatus = getDisplayedLotStatus(lot);
   const canWrite = hasRole(['admin', 'manager', 'ops']) && lot.status !== 'pushed';
-  const canPush = hasRole(['admin', 'manager']) && total > 0;
-  const canRepush = hasRole(['admin', 'manager']) && lot.status === 'pushed';
+  const canPush = hasRole(['admin', 'manager', 'ops']) && total > 0;
+  const canRepush = hasRole(['admin', 'manager', 'ops']) && lot.status === 'pushed';
 
   return `
     <article class="lot-card">
@@ -705,7 +705,7 @@ function renderLotCard(lot) {
                   Push to Inventory
                 </button>
               `
-            : hasRole(['admin', 'manager'])
+            : hasRole(['admin', 'manager', 'ops'])
               ? '<button class="button button-secondary button-small" type="button" disabled>Empty Lot</button>'
               : ''
         }

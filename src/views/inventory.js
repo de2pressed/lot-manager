@@ -662,7 +662,7 @@ export async function renderInventoryView(container) {
   ensurePopoverDismissal();
   pruneSelectedInventoryIds();
 
-  const canWrite = hasRole(['admin', 'manager']);
+  const canWrite = hasRole(['admin', 'manager', 'ops']);
   const counts = getTabCounts();
   const rows = getFilteredInventory();
   const defectedRows = rows.filter((item) => item.status === 'defected');
