@@ -40,7 +40,7 @@ export function renderSidebar(activeRoute) {
     <div class="sidebar-footer">
       <span class="role-chip">${state.currentRole || 'viewer'}</span>
       <span class="live-chip">Realtime ready</span>
-      <span class="version-chip">v1.03</span>
+      <span class="version-chip">v1.04</span>
     </div>
   `;
 }

@@ -1,7 +1,6 @@
 .app-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 200px 1fr;
+  display: block;
 }
 
 .sidebar {
@@ -160,6 +159,8 @@
 .app-main {
   margin-left: 200px;
   min-height: 100vh;
+  width: calc(100% - 200px);
+  min-width: 0;
   background: var(--bg-base);
 }
 
@@ -229,15 +230,17 @@
 .view-root {
   padding: 32px 28px;
   max-width: 1400px;
+  width: 100%;
+  min-width: 0;
 }
 
 .topbar-menu {
-  display: none;
+  display: none !important;
 }
 
 @media (max-width: 960px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    display: block;
   }
 
   .sidebar {
@@ -258,6 +261,7 @@
 
   .app-main {
     margin-left: 0;
+    width: 100%;
   }
 
   .view-root {
@@ -269,6 +273,6 @@
   }
 
   .topbar-menu {
-    display: inline-flex;
+    display: inline-flex !important;
   }
 }
