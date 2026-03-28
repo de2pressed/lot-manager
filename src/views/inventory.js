@@ -306,6 +306,8 @@ function openInventoryModal(item = null) {
 function openSellModal(item) {
   const body = document.createElement('div');
   const footer = document.createElement('div');
+  const cancelButton = document.createElement('button');
+  const submitButton = document.createElement('button');
 
   body.innerHTML = `
     <form class="modal-form" id="inventory-sell-form">
@@ -355,40 +357,54 @@ function openSellModal(item) {
     </form>
   `;
 
-  footer.innerHTML = `
-    <button class="button button-secondary" type="button" data-close-modal>Cancel</button>
-    <button class="button button-primary" type="button" data-submit-sale>Record Sale</button>
-  `;
+  cancelButton.className = 'button button-secondary';
+  cancelButton.type = 'button';
+  cancelButton.dataset.closeModal = '';
+  cancelButton.textContent = 'Cancel';
+
+  submitButton.className = 'button button-primary';
+  submitButton.type = 'button';
+  submitButton.textContent = 'Record Sale';
+
+  footer.append(cancelButton, submitButton);
 
   openModal({
     title: 'Sell Inventory Item',
     description: 'This will immediately reduce the current stock count.',
     body,
     footer,
-    onOpen({ body: bodyTarget, footer: footerTarget, close }) {
+    onOpen({ body: bodyTarget, close }) {
       const form = $('#inventory-sell-form', bodyTarget);
 
-      $('[data-submit-sale]', footerTarget)?.addEventListener('click', () => {
-        if (!form) return;
-        if (typeof form.requestSubmit === 'function') {
-          form.requestSubmit();
-          return;
-        }
-
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      });
-
-      form?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
+      const handleSubmit = async () => {
         try {
+          const qtySold = Number($('#inventory-sell-qty', bodyTarget).value);
+          const salePrice = Number($('#inventory-sell-price', bodyTarget).value);
+          const dateValue = $('#inventory-sell-date', bodyTarget).value;
+
+          if (!qtySold || qtySold < 1) {
+            throw new Error('Enter a valid sold quantity.');
+          }
+
+          if (Number.isNaN(salePrice) || salePrice < 0) {
+            throw new Error('Enter a valid sale price.');
+          }
+
+          if (!dateValue) {
+            throw new Error('Select a sale date.');
+          }
+
+          if (submitButton) {
+            submitButton.disabled = true;
+          }
+
           await recordSale(
             {
               inventoryId: item.id,
-              salePrice: Number($('#inventory-sell-price', bodyTarget).value),
-              qtySold: Number($('#inventory-sell-qty', bodyTarget).value),
+              salePrice,
+              qtySold,
               platform: $('#inventory-sell-platform', bodyTarget).value,
-              dateSold: inputDateToIso($('#inventory-sell-date', bodyTarget).value),
+              dateSold: inputDateToIso(dateValue),
               notes: $('#inventory-sell-notes', bodyTarget).value.trim(),
               buyerName: $('#inventory-sell-buyer-name', bodyTarget).value.trim()
             },
@@ -400,7 +416,18 @@ function openSellModal(item) {
           renderInventoryView(document.getElementById('view-root'));
         } catch (error) {
           showToast(error.message || 'Unable to record sale.', 'error');
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+          }
         }
+      };
+
+      submitButton.addEventListener('click', handleSubmit);
+
+      form?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await handleSubmit();
       });
     }
   });
