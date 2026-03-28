@@ -1,0 +1,1812 @@
+﻿
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Raptile Studio Inventory Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --base-font: clamp(12px, 1.1vw, 15px);
+      --bg-base: #080808;
+      --bg-surface: #0f0f0f;
+      --bg-elevated: #161616;
+      --bg-hover: #1e1e1e;
+      --bg-active: #242424;
+      --border-dim: #1c1c1c;
+      --border-mid: #2a2a2a;
+      --border-bright: #3a3a3a;
+      --text-primary: #e8e8e0;
+      --text-secondary: #888880;
+      --text-muted: #484840;
+      --accent: #00c46a;
+      --accent-dim: #00c46a22;
+      --accent-hover: #00e07a;
+      --profit: #00c46a;
+      --loss: #e03c3c;
+      --loss-dim: #e03c3c22;
+      --warning: #f0a500;
+      --warning-dim: #f0a50018;
+      --font-data: 'IBM Plex Mono', monospace;
+      --font-ui: 'DM Sans', sans-serif;
+
+      --bg: var(--bg-base);
+      --p: var(--bg-elevated);
+      --p2: var(--bg-surface);
+      --b: var(--border-mid);
+      --t: var(--text-primary);
+      --m: var(--text-secondary);
+      --a: var(--accent);
+      --ok: var(--profit);
+      --bad: var(--loss);
+    }
+
+    * { box-sizing: border-box; }
+    html { font-size: var(--base-font); }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 12% -8%, var(--accent-dim), transparent 38%), var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: 1rem;
+    }
+
+    .mono { font-family: var(--font-data); }
+    .hidden { display: none !important; }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: clamp(180px, 15vw, 240px) 1fr;
+    }
+
+    .sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border-mid);
+      padding: 1rem .7rem;
+      z-index: 8;
+    }
+
+    .brand {
+      padding-bottom: .7rem;
+      margin: 0 0 .9rem;
+      border-bottom: 1px solid var(--border-mid);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: .15em;
+      font-family: var(--font-data);
+      text-transform: uppercase;
+    }
+
+    .brand p {
+      margin: .3rem 0 0;
+      font-size: .8rem;
+      color: var(--text-secondary);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-family: var(--font-data);
+    }
+
+    .nav {
+      display: grid;
+      gap: .45rem;
+    }
+
+    .nav-btn {
+      position: relative;
+      border: 1px solid transparent;
+      border-left: 3px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      text-align: left;
+      font-size: .85rem;
+      padding: .55rem .6rem;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--border-mid);
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-btn.active {
+      border-left-color: var(--accent);
+      border-color: var(--border-mid);
+      background: var(--bg-active);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .main {
+      padding: .9rem 1rem .6rem;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: .7rem;
+      align-items: center;
+      border-bottom: 1px solid var(--border-mid);
+      margin-bottom: .7rem;
+      padding-bottom: .7rem;
+    }
+
+    .top-left h2 {
+      margin: 0;
+      font-size: clamp(1rem, 1.5vw, 1.3rem);
+      letter-spacing: .12em;
+      font-family: var(--font-data);
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+
+    .top-left p {
+      margin: .2rem 0 0;
+      font-size: .7rem;
+      color: var(--text-secondary);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    #menuBtn { display: none; }
+
+    .search-wrap {
+      display: flex;
+      justify-content: center;
+    }
+
+    .search-wrap input {
+      width: min(100%, 440px);
+      border: 1px solid var(--border-mid);
+      background: var(--bg-base);
+      color: var(--text-primary);
+      padding: .52rem .6rem;
+      font-family: var(--font-data);
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: .45rem;
+    }
+
+    .btn {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: .5rem .65rem;
+      font: inherit;
+    }
+
+    .btn:hover {
+      border-color: var(--border-bright);
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn.pri {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+    }
+
+    #syncBtn.loading #syncIcon {
+      display: inline-block;
+      animation: spin .8s linear infinite;
+    }
+
+    #syncBtn.ok {
+      border-color: var(--accent);
+      color: #000;
+      background: var(--accent);
+    }
+
+    #syncBtn.fail {
+      border-color: var(--loss);
+      color: var(--loss);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .meta {
+      font-size: .8rem;
+      color: var(--text-secondary);
+      font-family: var(--font-data);
+    }
+
+    .view {
+      display: none;
+      animation: viewFade .2s;
+      min-width: 0;
+    }
+
+    .view.active { display: block; }
+
+    @keyframes viewFade {
+      from { opacity: .25; transform: translateY(5px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .stats-wrap {
+      background: var(--border-dim);
+      padding: 1px;
+      margin-bottom: .7rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      padding: 1.25rem 1rem;
+    }
+
+    .stat-val {
+      font-family: var(--font-data);
+      font-size: clamp(1.4rem, 2vw, 2rem);
+      font-weight: 500;
+      line-height: 1;
+      color: var(--text-primary);
+    }
+
+    .stat-lab {
+      margin-top: .35rem;
+      color: var(--text-secondary);
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: .6rem;
+    }
+
+    .panel {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-surface);
+      padding: .6rem;
+    }
+
+    .panel.full { grid-column: 1 / -1; }
+
+    .panel h3 {
+      margin: 0 0 .45rem;
+      color: var(--text-secondary);
+      font-size: .75rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .panel canvas {
+      width: 100%;
+      height: clamp(180px, 25vh, 280px) !important;
+      min-height: clamp(180px, 25vh, 280px);
+      max-height: clamp(180px, 25vh, 280px);
+    }
+
+    .view-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .45rem;
+      color: var(--text-secondary);
+      font-size: .8rem;
+    }
+
+    .sales-subtabs {
+      display: flex;
+      gap: .35rem;
+      margin-bottom: .45rem;
+    }
+
+    .sales-subtabs button {
+      border: 1px solid var(--border-mid);
+      background: transparent;
+      color: var(--text-secondary);
+      padding: .35rem .5rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: .75rem;
+      cursor: pointer;
+    }
+
+    .sales-subtabs button.active {
+      border-color: var(--accent);
+      background: var(--bg-active);
+      color: var(--accent);
+    }
+
+    .table-wrap {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-surface);
+      overflow: auto;
+      max-height: calc(100vh - 260px);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 860px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-elevated);
+      text-transform: uppercase;
+      font-size: .65rem;
+      letter-spacing: .1em;
+      color: var(--text-secondary);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-mid);
+      text-align: left;
+    }
+
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: .85rem;
+      vertical-align: top;
+    }
+
+    tbody tr:hover { background: var(--bg-hover); }
+
+    .num {
+      font-family: var(--font-data);
+      text-align: right;
+    }
+
+    .actions {
+      white-space: nowrap;
+      color: var(--text-secondary);
+      font-size: .8rem;
+    }
+
+    .actions button {
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+      font: inherit;
+    }
+
+    .actions .sep { opacity: .45; margin: 0 .28rem; }
+
+    .status-pill {
+      display: inline-block;
+      margin-left: .4rem;
+      padding: .08rem .35rem;
+      border: 1px solid var(--border-mid);
+      font-size: .62rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-family: var(--font-data);
+    }
+
+    .status-in { color: var(--profit); border-color: #00c46a66; }
+    .status-low { color: var(--warning); border-color: #f0a50066; }
+
+    .empty {
+      border: 1px dashed var(--border-mid);
+      padding: 1.1rem;
+      text-align: center;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+    }
+    .history-list {
+      display: grid;
+      gap: .45rem;
+    }
+
+    .history-item {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-surface);
+      display: grid;
+      grid-template-columns: 2rem 1fr auto;
+      gap: .5rem;
+      padding: .5rem;
+    }
+
+    .history-icon {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-elevated);
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .history-meta {
+      margin-top: .25rem;
+      color: var(--text-secondary);
+      font: .8rem var(--font-data);
+    }
+
+    .history-amt {
+      color: var(--accent);
+      font: .84rem var(--font-data);
+    }
+
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, .88);
+      padding: .85rem;
+      z-index: 80;
+    }
+
+    .modal-bg.open { display: flex; }
+
+    .modal {
+      width: clamp(320px, 50vw, 560px);
+      max-height: 85vh;
+      overflow: auto;
+      border: 1px solid var(--border-mid);
+      background: var(--bg-elevated);
+      padding: 24px;
+    }
+
+    .modal.picker { width: clamp(500px, 80vw, 900px); }
+
+    .modal h2 {
+      margin: 0 0 .7rem;
+      font: clamp(1rem, 1.5vw, 1.3rem) var(--font-data);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-primary);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field { display: grid; gap: 4px; }
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: .7rem;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-mid);
+      color: var(--text-primary);
+      border-radius: 2px;
+      font-size: .9rem;
+      font-family: var(--font-data);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      outline: none;
+      box-shadow: 0 0 0 2px var(--accent-dim);
+    }
+
+    input::placeholder, textarea::placeholder { color: var(--text-muted); }
+    textarea { min-height: 72px; resize: vertical; }
+
+    .invalid { border-color: var(--loss) !important; }
+    .err { color: var(--loss); font-size: .8rem; min-height: 1em; }
+
+    .modal-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .picker-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .5rem;
+      min-height: 280px;
+    }
+
+    .prod-list {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-base);
+      max-height: 60vh;
+      overflow: auto;
+    }
+
+    .prod-item {
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid var(--border-dim);
+      background: transparent;
+      color: var(--text-primary);
+      text-align: left;
+      padding: .55rem;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .prod-item:hover { background: var(--bg-hover); }
+    .prod-item.active { background: var(--bg-active); color: var(--accent); }
+
+    .variant-pane {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-base);
+      max-height: 60vh;
+      overflow: auto;
+      padding: .4rem;
+      display: grid;
+      gap: .35rem;
+      align-content: start;
+    }
+
+    .commonbar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: var(--bg-active);
+      border-bottom: 1px solid var(--border-mid);
+      padding: 8px 12px;
+    }
+
+    .commonlab {
+      font-size: .65rem;
+      color: var(--text-secondary);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: .35rem;
+    }
+
+    .commonrow { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .cbuy, .csale { width: 120px; }
+    .capply {
+      height: 28px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #000;
+      cursor: pointer;
+      padding: 0 .55rem;
+    }
+
+    .vrow {
+      border: 1px solid var(--border-mid);
+      background: var(--bg-surface);
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto auto;
+      gap: .35rem;
+      padding: .45rem;
+      align-items: center;
+    }
+
+    .vrow:hover, .vrow:focus-within { background: var(--bg-hover); border-color: var(--border-bright); }
+    .vmeta { color: var(--text-secondary); font-size: .75rem; }
+    .vdot { width: .45rem; height: .45rem; border-radius: 50%; background: var(--warning); display: inline-block; }
+    .vqty { width: 4rem; }
+    .vbuy, .vsale { width: 6.5rem; }
+    .vadd {
+      width: 1.75rem;
+      height: 1.75rem;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #000;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .vok { color: var(--profit); font-weight: 700; opacity: 0; transition: opacity .2s; }
+    .vrow input { opacity: .65; }
+    .vrow:hover input, .vrow:focus-within input { opacity: 1; }
+    .vrow:hover .vadd, .vrow:focus-within .vadd { background: var(--accent-hover); }
+    .vrow.added { background: var(--accent-dim); }
+    .vrow.added .vok { opacity: 1; }
+    .fillflash { background: var(--accent-dim) !important; }
+
+    .shake { animation: sh .24s linear 1; }
+    @keyframes sh { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px)} 75%{transform:translateX(2px)} }
+
+    #toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 9999;
+    }
+
+    .toast {
+      padding: 10px 16px;
+      background: var(--bg-elevated);
+      border-left: 3px solid var(--accent);
+      color: var(--text-primary);
+      font-size: .8rem;
+      font-family: var(--font-ui);
+      min-width: 220px;
+      animation: slideUp .2s ease;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    }
+
+    .toast.error { border-color: var(--loss); }
+    .toast.warning { border-color: var(--warning); }
+    .toast.success { border-color: var(--profit); }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .footer {
+      margin-top: auto;
+      border-top: 1px solid var(--border-dim);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font: .7rem var(--font-data);
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      flex-wrap: wrap;
+      padding: .45rem .55rem;
+    }
+
+    .footer .sep { opacity: .55; }
+
+    @media (max-width: 1100px) {
+      .sidebar { width: 4rem; padding: .8rem .35rem; }
+      .brand h1, .brand p, .nav-btn .lbl { display: none; }
+      .nav-btn { font-size: 0; display: flex; justify-content: center; padding: .55rem .2rem; }
+      .nav-btn::before { content: attr(data-icon); font-size: 1rem; }
+      .nav-btn:hover::after {
+        content: attr(title);
+        position: absolute;
+        left: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+        margin-left: .45rem;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-mid);
+        color: var(--text-primary);
+        padding: .25rem .4rem;
+        font-size: .75rem;
+        white-space: nowrap;
+      }
+    }
+
+    @media (max-width: 960px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: clamp(180px, 15vw, 240px);
+        transform: translateX(-100%);
+        transition: transform .16s;
+        padding: 1rem .7rem;
+      }
+      .sidebar.open { transform: none; }
+      #menuBtn { display: inline-block; margin-bottom: .55rem; }
+      .brand h1, .brand p, .nav-btn .lbl { display: block; }
+      .nav-btn { font-size: .85rem; display: block; padding: .55rem .6rem; }
+      .topbar { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 900px) {
+      .col-notes, .col-variant { display: none; }
+      .charts { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .grid, .picker-wrap { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <h1>RAPTILE STUDIO</h1>
+        <p>Inventory</p>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn" data-view="dashboard" data-icon="D" title="Dashboard"><span class="lbl">Dashboard</span></button>
+        <button class="nav-btn" data-view="inventory" data-icon="I" title="Inventory"><span class="lbl">Inventory</span></button>
+        <button class="nav-btn" data-view="sales" data-icon="S" title="Sales"><span class="lbl">Sales</span></button>
+        <button class="nav-btn" data-view="history" data-icon="H" title="History"><span class="lbl">History</span></button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="top-left">
+          <button class="btn" id="menuBtn" type="button">Menu</button>
+          <h2>RAPTILE STUDIO</h2>
+          <p>INVENTORY</p>
+        </div>
+        <div class="search-wrap"><input id="globalSearch" class="hidden" placeholder="Search product"></div>
+        <div class="top-right">
+          <button class="btn pri" id="addItemBtn" type="button">+ Add Item</button>
+          <button class="btn" id="syncBtn" type="button"><span id="syncIcon">↻</span> <span id="syncText">Sync Products</span></button>
+          <span class="meta" id="syncMeta">Last synced: Never</span>
+          <select id="exportSelect" class="btn" style="padding:.46rem .55rem;">
+            <option value="">Export</option>
+            <option value="csv">Export Sales CSV</option>
+            <option value="backup">Export Backup JSON</option>
+            <option value="import">Import Backup JSON</option>
+          </select>
+          <input type="file" id="backupInput" accept=".json,application/json" hidden>
+        </div>
+      </header>
+
+      <section class="view" id="view-dashboard">
+        <div class="stats-wrap">
+          <div class="stats">
+            <article class="stat-card"><div class="stat-val" data-stat="revenue">₹0.00</div><div class="stat-lab">Total Revenue</div></article>
+            <article class="stat-card"><div class="stat-val" data-stat="cost">₹0.00</div><div class="stat-lab">Total Cost</div></article>
+            <article class="stat-card"><div class="stat-val" data-stat="profit">₹0.00</div><div class="stat-lab">Total Profit</div></article>
+            <article class="stat-card"><div class="stat-val" data-stat="margin">0.0%</div><div class="stat-lab">Profit Margin</div></article>
+            <article class="stat-card"><div class="stat-val" data-stat="stock">0</div><div class="stat-lab">Units in Stock</div></article>
+            <article class="stat-card"><div class="stat-val" data-stat="sold">0</div><div class="stat-lab">Units Sold</div></article>
+          </div>
+        </div>
+        <div class="charts">
+          <section class="panel"><h3>Monthly Revenue (Last 6 Months)</h3><canvas id="chartRevenue"></canvas></section>
+          <section class="panel"><h3>Cumulative Profit</h3><canvas id="chartProfit"></canvas></section>
+          <section class="panel full"><h3>Top Products (Units Sold)</h3><canvas id="chartTop"></canvas></section>
+        </div>
+      </section>
+
+      <section class="view" id="view-inventory">
+        <div class="view-head"><span id="inventoryCount">0 items</span></div>
+        <div id="inventoryOut"></div>
+      </section>
+
+      <section class="view" id="view-sales">
+        <div class="sales-subtabs">
+          <button id="tabToSell" class="active" type="button">To Sell</button>
+          <button id="tabSold" type="button">Sold</button>
+        </div>
+        <div id="salesOut"></div>
+      </section>
+
+      <section class="view" id="view-history">
+        <div id="historyOut"></div>
+      </section>
+
+      <footer class="footer">
+        <span>RAPTILE STUDIO INVENTORY</span><span class="sep">·</span>
+        <span id="lastSavedText">Last saved: never</span><span class="sep">·</span>
+        <button class="btn" id="footerExportBtn" type="button">Export Backup</button>
+        <button class="btn" id="footerImportBtn" type="button">Import Backup</button>
+      </footer>
+    </main>
+  </div>
+  <div class="modal-bg" id="pickerModal">
+    <div class="modal picker">
+      <h2>Select Product</h2>
+      <div class="field full" style="margin-bottom:8px;">
+        <label for="pickerSearch">Search Synced Products</label>
+        <input id="pickerSearch" placeholder="Type product name">
+      </div>
+      <div class="picker-wrap">
+        <div class="prod-list" id="pickerProducts"></div>
+        <div class="variant-pane" id="pickerVariants"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="retrySyncBtn" type="button">Retry Sync</button>
+        <button class="btn" id="manualAddBtn" type="button">Enter Manually</button>
+        <button class="btn" data-close="pickerModal" type="button">Cancel</button>
+        <button class="btn pri" data-close="pickerModal" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="itemModal">
+    <div class="modal">
+      <h2 id="itemTitle">Add Inventory Item</h2>
+      <form id="itemForm">
+        <input type="hidden" id="itemEditId">
+        <input type="hidden" id="itemShopifyId">
+        <div class="grid">
+          <div class="field"><label for="itemName">Product Name *</label><input id="itemName" required></div>
+          <div class="field"><label for="itemVariant">Variant</label><input id="itemVariant"></div>
+          <div class="field"><label for="itemSku">SKU</label><input id="itemSku"></div>
+          <div class="field"><label for="itemQty">Quantity *</label><input id="itemQty" type="number" min="1" value="1" required></div>
+          <div class="field"><label for="itemBuyPrice">Buy Price (₹) *</label><input id="itemBuyPrice" type="number" min="0" step="0.01" required></div>
+          <div class="field"><label for="itemDate">Date Added *</label><input id="itemDate" type="date" required></div>
+          <div class="field full"><label for="itemNotes">Notes</label><textarea id="itemNotes"></textarea></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" data-close="itemModal" type="button">Cancel</button>
+          <button class="btn pri" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="sellModal">
+    <div class="modal">
+      <h2 id="sellTitle">Mark As Sold</h2>
+      <form id="sellForm">
+        <input type="hidden" id="sellInventoryId">
+        <div class="grid">
+          <div class="field full"><label for="sellName">Item</label><input id="sellName" readonly></div>
+          <div class="field"><label for="sellQty">Qty to Sell *</label><input id="sellQty" type="number" min="1" required><div class="err" id="sellErr"></div></div>
+          <div class="field"><label for="sellPrice">Sale Price / Unit (₹) *</label><input id="sellPrice" type="number" min="0" step="0.01" required></div>
+          <div class="field"><label for="sellDate">Date Sold *</label><input id="sellDate" type="date" required></div>
+          <div class="field"><label for="sellPlatform">Platform *</label><select id="sellPlatform" required><option>Direct</option><option>Instagram DM</option><option>WhatsApp</option><option>Depop</option><option>Other</option></select></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" data-close="sellModal" type="button">Cancel</button>
+          <button class="btn pri" type="submit">Confirm Sale</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const STORAGE_KEY = 'raptile_inventory_v1';
+    const SHOPIFY_URL = 'https://raptilestudio.myshopify.com/products.json?limit=250';
+
+    let state = {
+      inventory: [],
+      sales: [],
+      log: [],
+      products: [],
+      lastSynced: null,
+      activeView: 'dashboard',
+      salesSubTab: 'to_sell',
+      lastSaved: null
+    };
+
+    const charts = {};
+    const quickAddTimers = {};
+    let pickerSelectedId = null;
+    let saveTicker = null;
+    let syncStatusTimer = null;
+
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+    function num(v) {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function int(v) {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function uid() {
+      return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2);
+    }
+
+    function esc(v) {
+      return String(v)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function toInputDate(iso) {
+      const d = new Date(iso || Date.now());
+      if (Number.isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function toISO(dateValue) {
+      if (!dateValue) return new Date().toISOString();
+      const d = new Date(dateValue + 'T12:00:00');
+      return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    }
+
+    function fmtINR(v) {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num(v));
+    }
+
+    function fmtDate(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return 'Invalid Date';
+      return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+    }
+
+    function fmtDateTime(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return 'Invalid Date';
+      return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+    }
+
+    function relTime(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return 'just now';
+      const ms = d.getTime() - Date.now();
+      const abs = Math.abs(ms);
+      const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+      if (abs < 60000) return rtf.format(Math.round(ms / 1000), 'second');
+      if (abs < 3600000) return rtf.format(Math.round(ms / 60000), 'minute');
+      if (abs < 86400000) return rtf.format(Math.round(ms / 3600000), 'hour');
+      return rtf.format(Math.round(ms / 86400000), 'day');
+    }
+
+    function signClass(v) {
+      const n = num(v);
+      if (n > 0) return 'pos';
+      if (n < 0) return 'neg';
+      return 'neu';
+    }
+
+    function defaultState() {
+      return {
+        inventory: [],
+        sales: [],
+        log: [],
+        products: [],
+        lastSynced: null,
+        activeView: 'dashboard',
+        salesSubTab: 'to_sell',
+        lastSaved: null
+      };
+    }
+
+    function loadState() {
+      const d = defaultState();
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          d.inventory = Array.isArray(parsed.inventory) ? parsed.inventory : [];
+          d.sales = Array.isArray(parsed.sales) ? parsed.sales : [];
+          d.log = Array.isArray(parsed.log) ? parsed.log : (Array.isArray(parsed.logs) ? parsed.logs : []);
+          d.products = Array.isArray(parsed.products) ? parsed.products : [];
+          d.lastSynced = parsed.lastSynced || null;
+          d.activeView = parsed.activeView || 'dashboard';
+          d.salesSubTab = parsed.salesSubTab || 'to_sell';
+          d.lastSaved = parsed.lastSaved || null;
+        }
+      } catch (e) {
+        console.error('localStorage load failed:', e);
+      }
+      state = d;
+    }
+
+    function saveState() {
+      try {
+        state.lastSaved = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        showToast('Storage error — data may not be saved', 'error');
+        console.error('localStorage save failed:', e);
+      }
+    }
+
+    function mutateState(fn) {
+      fn();
+      saveState();
+      renderActiveView();
+    }
+
+    function showToast(message, type) {
+      const container = $('#toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (type || 'success');
+      toast.textContent = message;
+      container.appendChild(toast);
+      while (container.children.length > 4) {
+        container.removeChild(container.firstElementChild);
+      }
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function logAction(type, description, amount) {
+      state.log.unshift({
+        id: uid(),
+        timestamp: new Date().toISOString(),
+        type,
+        description,
+        amount: amount == null ? null : num(amount)
+      });
+    }
+
+    function updateLastSavedText() {
+      const node = $('#lastSavedText');
+      if (!state.lastSaved) {
+        node.textContent = 'Last saved: never';
+        return;
+      }
+      const sec = Math.max(0, Math.floor((Date.now() - new Date(state.lastSaved).getTime()) / 1000));
+      if (sec < 60) node.textContent = `Last saved: ${sec} seconds ago`;
+      else if (sec < 3600) node.textContent = `Last saved: ${Math.floor(sec / 60)} minutes ago`;
+      else node.textContent = `Last saved: ${Math.floor(sec / 3600)} hours ago`;
+    }
+
+    function updateSyncMeta() {
+      $('#syncMeta').textContent = state.lastSynced ? 'Last synced: ' + fmtDateTime(state.lastSynced) : 'Last synced: Never';
+    }
+
+    function updateAddButtonVisibility(viewName) {
+      $('#addItemBtn').style.display = ['inventory', 'sales'].includes(viewName) ? '' : 'none';
+    }
+    function setSyncVisual(status) {
+      const btn = $('#syncBtn');
+      const icon = $('#syncIcon');
+      const text = $('#syncText');
+      if (syncStatusTimer) clearTimeout(syncStatusTimer);
+      btn.classList.remove('loading', 'ok', 'fail');
+      if (status === 'loading') {
+        btn.classList.add('loading');
+        icon.textContent = '↻';
+        text.textContent = 'Syncing...';
+      } else if (status === 'ok') {
+        btn.classList.add('ok');
+        icon.textContent = '✓';
+        text.textContent = 'Synced just now';
+        syncStatusTimer = setTimeout(() => setSyncVisual('idle'), 1800);
+      } else if (status === 'fail') {
+        btn.classList.add('fail');
+        icon.textContent = '⚠';
+        text.textContent = 'Sync failed';
+        syncStatusTimer = setTimeout(() => setSyncVisual('idle'), 1800);
+      } else {
+        icon.textContent = '↻';
+        text.textContent = 'Sync Products';
+      }
+    }
+
+    function metrics() {
+      const revenue = state.sales.reduce((a, s) => a + num(s.salePrice) * int(s.qtySold), 0);
+      const cost = state.sales.reduce((a, s) => a + num(s.buyPrice) * int(s.qtySold), 0);
+      const profit = revenue - cost;
+      const margin = revenue ? (profit / revenue) * 100 : 0;
+      const unitsInStock = state.inventory.filter((x) => x.status === 'in_stock' && int(x.quantity) > 0).reduce((a, x) => a + int(x.quantity), 0);
+      const unitsSold = state.sales.reduce((a, s) => a + int(s.qtySold), 0);
+      return { revenue, cost, profit, margin, unitsInStock, unitsSold };
+    }
+
+    function chartLabelStyle() {
+      return { color: '#e8e8e0', font: { family: 'IBM Plex Mono' } };
+    }
+
+    function upsertChart(id, config) {
+      if (charts[id]) charts[id].destroy();
+      if (typeof Chart === 'undefined') return;
+      charts[id] = new Chart(document.getElementById(id), config);
+    }
+
+    function renderDashboard() {
+      const m = metrics();
+      const revNode = $('[data-stat="revenue"]');
+      const costNode = $('[data-stat="cost"]');
+      const proNode = $('[data-stat="profit"]');
+      const marNode = $('[data-stat="margin"]');
+      const stkNode = $('[data-stat="stock"]');
+      const soldNode = $('[data-stat="sold"]');
+      revNode.textContent = fmtINR(m.revenue);
+      costNode.textContent = fmtINR(m.cost);
+      proNode.textContent = fmtINR(m.profit);
+      marNode.textContent = m.margin.toFixed(1) + '%';
+      stkNode.textContent = String(m.unitsInStock);
+      soldNode.textContent = String(m.unitsSold);
+      proNode.classList.remove('pos', 'neg', 'neu'); proNode.classList.add(signClass(m.profit));
+      marNode.classList.remove('pos', 'neg', 'neu'); marNode.classList.add(signClass(m.margin));
+
+      const now = new Date();
+      const months = [];
+      const monthlyRevenue = [];
+      for (let i = 5; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleString('en-GB', { month: 'short', year: '2-digit' }) });
+        monthlyRevenue.push(0);
+      }
+      state.sales.forEach((sale) => {
+        const d = new Date(sale.dateSold);
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const idx = months.findIndex((x) => x.key === k);
+        if (idx >= 0) monthlyRevenue[idx] += num(sale.salePrice) * int(sale.qtySold);
+      });
+
+      upsertChart('chartRevenue', {
+        type: 'bar',
+        data: { labels: months.map((x) => x.label), datasets: [{ label: 'Revenue', data: monthlyRevenue, backgroundColor: 'rgba(0,196,106,.72)', borderColor: '#00c46a', borderWidth: 1 }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { labels: chartLabelStyle() } }, scales: { x: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } }, y: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } } } }
+      });
+
+      const sorted = [...state.sales].sort((a, b) => new Date(a.dateSold) - new Date(b.dateSold));
+      let run = 0;
+      const labels = [];
+      const data = [];
+      sorted.forEach((sale) => {
+        run += num(sale.profit);
+        labels.push(fmtDate(sale.dateSold));
+        data.push(run);
+      });
+
+      upsertChart('chartProfit', {
+        type: 'line',
+        data: { labels: labels.length ? labels : ['No Sales'], datasets: [{ label: 'Cumulative Profit', data: data.length ? data : [0], borderColor: '#00c46a', backgroundColor: '#00c46a22', segment: { borderColor: (ctx) => (ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? '#e03c3c' : '#00c46a' }, fill: true, tension: .2, pointRadius: 2, borderWidth: 2 }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { labels: chartLabelStyle() } }, scales: { x: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } }, y: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } } } }
+      });
+
+      const prodMap = new Map();
+      state.sales.forEach((sale) => {
+        const key = sale.variant ? `${sale.name} (${sale.variant})` : sale.name;
+        prodMap.set(key, (prodMap.get(key) || 0) + int(sale.qtySold));
+      });
+      const top = [...prodMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+      upsertChart('chartTop', {
+        type: 'bar',
+        data: { labels: top.length ? top.map((x) => x[0]) : ['No Sales'], datasets: [{ label: 'Units Sold', data: top.length ? top.map((x) => x[1]) : [0], backgroundColor: 'rgba(0,196,106,.65)', borderColor: '#00c46a', borderWidth: 1 }] },
+        options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { labels: chartLabelStyle() } }, scales: { x: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } }, y: { ticks: chartLabelStyle(), grid: { color: '#1c1c1c' } } } }
+      });
+    }
+
+    function renderInventory() {
+      const q = ($('#globalSearch').value || '').trim().toLowerCase();
+      const rows = state.inventory.filter((x) => x.status === 'in_stock' && int(x.quantity) > 0 && x.name.toLowerCase().includes(q));
+      $('#inventoryCount').textContent = rows.length + ' items';
+
+      if (!rows.length) {
+        $('#inventoryOut').innerHTML = '<div class="empty"><p>No items in inventory.</p><button class="btn pri" id="emptyAddBtn" type="button">+ Add Item</button></div>';
+        const b = $('#emptyAddBtn');
+        if (b) b.onclick = openProductPicker;
+        return;
+      }
+
+      $('#inventoryOut').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Product</th><th class="col-variant">Variant</th><th>Date Added</th><th class="num">Buy Price (₹)</th><th class="num">Qty</th><th class="col-notes">Notes</th><th>Actions</th></tr></thead><tbody>${rows.map((r) => {
+        const qty = int(r.quantity);
+        const badge = qty <= 2 ? '<span class="status-pill status-low">LOW</span>' : '<span class="status-pill status-in">IN STOCK</span>';
+        return `<tr><td>${esc(r.name)}</td><td class="col-variant">${esc(r.variant || '-')}</td><td class="mono">${fmtDate(r.dateAdded)}</td><td class="num">${fmtINR(r.buyPrice)}</td><td class="num">${qty} ${badge}</td><td class="col-notes">${esc(r.notes || '-')}</td><td class="actions"><button data-a="sell" data-id="${r.id}">Sell</button><span class="sep">·</span><button data-a="edit" data-id="${r.id}">Edit</button><span class="sep">·</span><button data-a="del-inv" data-id="${r.id}">Delete</button></td></tr>`;
+      }).join('')}</tbody></table></div>`;
+    }
+
+    function renderSales() {
+      const q = ($('#globalSearch').value || '').trim().toLowerCase();
+      const toSell = state.inventory.filter((x) => x.status === 'in_stock' && int(x.quantity) > 0 && x.name.toLowerCase().includes(q));
+      const sold = [...state.sales].filter((x) => x.name.toLowerCase().includes(q)).sort((a, b) => new Date(b.dateSold) - new Date(a.dateSold));
+
+      $('#tabToSell').classList.toggle('active', state.salesSubTab === 'to_sell');
+      $('#tabSold').classList.toggle('active', state.salesSubTab === 'sold');
+
+      if (state.salesSubTab === 'to_sell') {
+        if (!toSell.length) {
+          $('#salesOut').innerHTML = '<div class="empty"><p>No in-stock items to sell.</p></div>';
+          return;
+        }
+        $('#salesOut').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Product</th><th class="col-variant">Variant</th><th>Date Added</th><th class="num">Buy Price (₹)</th><th class="num">Qty</th><th>Action</th></tr></thead><tbody>${toSell.map((r) => `<tr><td>${esc(r.name)}</td><td class="col-variant">${esc(r.variant || '-')}</td><td class="mono">${fmtDate(r.dateAdded)}</td><td class="num">${fmtINR(r.buyPrice)}</td><td class="num">${int(r.quantity)}</td><td class="actions"><button class="btn pri" style="padding:.2rem .45rem" data-a="sell" data-id="${r.id}">Mark as Sold</button></td></tr>`).join('')}</tbody></table></div>`;
+        return;
+      }
+
+      if (!sold.length) {
+        $('#salesOut').innerHTML = '<div class="empty"><p>No completed sales yet.</p></div>';
+        return;
+      }
+
+      $('#salesOut').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Product</th><th class="col-variant">Variant</th><th>Date Sold</th><th class="num">Qty</th><th class="num">Buy Price (₹)</th><th class="num">Sale Price (₹)</th><th class="num">Profit (₹)</th><th>Platform</th><th>Actions</th></tr></thead><tbody>${sold.map((r) => `<tr><td>${esc(r.name)}</td><td class="col-variant">${esc(r.variant || '-')}</td><td class="mono">${fmtDate(r.dateSold)}</td><td class="num">${int(r.qtySold)}</td><td class="num">${fmtINR(r.buyPrice)}</td><td class="num">${fmtINR(r.salePrice)}</td><td class="num ${signClass(r.profit)}">${fmtINR(r.profit)}</td><td>${esc(r.platform)}</td><td class="actions"><button data-a="del-sale" data-id="${r.id}">Delete</button></td></tr>`).join('')}</tbody></table></div>`;
+    }
+
+    function renderHistory() {
+      const rows = [...state.log].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      if (!rows.length) {
+        $('#historyOut').innerHTML = '<div class="empty"><p>No activity yet.</p></div>';
+        return;
+      }
+      const icons = { add: '📦', sell: '💸', edit: '✏️', delete: '🗑️', sync: '🔄' };
+      $('#historyOut').innerHTML = `<div class="history-list">${rows.map((r) => `<article class="history-item"><div class="history-icon">${icons[r.type] || '•'}</div><div><div>${esc(r.description)}</div><div class="history-meta" title="${esc(fmtDateTime(r.timestamp))}">${esc(relTime(r.timestamp))}</div></div><div class="history-amt">${r.amount == null ? '' : fmtINR(r.amount)}</div></article>`).join('')}</div>`;
+    }
+
+    function renderActiveView() {
+      $$('.view').forEach((v) => v.classList.remove('active'));
+      $('#view-' + state.activeView).classList.add('active');
+      $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === state.activeView));
+      updateAddButtonVisibility(state.activeView);
+      $('#globalSearch').classList.toggle('hidden', !['inventory', 'sales'].includes(state.activeView));
+
+      if (state.activeView === 'dashboard') renderDashboard();
+      if (state.activeView === 'inventory') renderInventory();
+      if (state.activeView === 'sales') renderSales();
+      if (state.activeView === 'history') renderHistory();
+
+      updateSyncMeta();
+      updateLastSavedText();
+    }
+
+    function switchView(viewName, persist) {
+      state.activeView = viewName;
+      if (persist !== false) saveState();
+      renderActiveView();
+    }
+    function openModal(id) { $('#' + id).classList.add('open'); }
+    function closeModal(id) {
+      const modal = $('#' + id);
+      if (!modal) return;
+      modal.classList.remove('open');
+      if (id === 'pickerModal') {
+        const cb = $('#pickerVariants .cbuy');
+        const cs = $('#pickerVariants .csale');
+        if (cb) cb.value = '';
+        if (cs) cs.value = '';
+      }
+    }
+
+    function closeAllModals() {
+      ['pickerModal', 'itemModal', 'sellModal'].forEach(closeModal);
+    }
+
+    function pulseInvalid(node) {
+      if (!node) return;
+      node.classList.remove('shake');
+      void node.offsetWidth;
+      node.classList.add('shake');
+    }
+
+    function pulseFill(node) {
+      if (!node) return;
+      node.classList.remove('fillflash');
+      void node.offsetWidth;
+      node.classList.add('fillflash');
+      setTimeout(() => node.classList.remove('fillflash'), 350);
+    }
+
+    function hasVariantInInventory(productId, variantTitle) {
+      return state.inventory.some((x) => String(x.shopifyProductId || '') === String(productId) && String(x.variant || '').trim() === String(variantTitle || '').trim() && x.status === 'in_stock');
+    }
+
+    function updateVariantAddState(row) {
+      if (!row) return;
+      const qty = row.querySelector('.vqty');
+      const buy = row.querySelector('.vbuy');
+      const add = row.querySelector('.vadd');
+      const on = int(qty.value) >= 1 && num(buy.value) > 0;
+      add.disabled = !on;
+      add.style.opacity = on ? '1' : '0.3';
+      add.style.cursor = on ? 'pointer' : 'not-allowed';
+    }
+
+    function quickAddVariant(product, variant, qty, buyPrice) {
+      if (!qty || qty < 1 || !buyPrice || buyPrice <= 0) return;
+      mutateState(() => {
+        const item = {
+          id: uid(),
+          shopifyProductId: product.id,
+          name: product.title,
+          variant: variant.title,
+          sku: variant.sku || '',
+          buyPrice: parseFloat(buyPrice),
+          quantity: parseInt(qty, 10),
+          dateAdded: new Date().toISOString(),
+          notes: '',
+          status: 'in_stock'
+        };
+        state.inventory.push(item);
+        logAction('add', `Added ${qty}× ${product.title} (${variant.title}) @ ₹${buyPrice}/unit`, buyPrice * qty);
+      });
+      showToast(`Added ${qty}× ${product.title} (${variant.title})`, 'success');
+    }
+
+    function openProductPicker() {
+      pickerSelectedId = null;
+      $('#pickerSearch').value = '';
+      renderPicker();
+      openModal('pickerModal');
+      $('#pickerSearch').focus();
+    }
+
+    function renderPicker() {
+      const q = ($('#pickerSearch').value || '').trim().toLowerCase();
+      const products = state.products.filter((p) => String(p.title || '').toLowerCase().includes(q));
+
+      if (!state.products.length) {
+        $('#pickerProducts').innerHTML = '<div class="empty" style="margin:8px;">Could not load products.</div>';
+        $('#pickerVariants').innerHTML = '<div class="empty">Could not load products.<br><br><button class="btn" id="pickerRetryInline" type="button">Retry Sync</button> <button class="btn" id="pickerManualInline" type="button">Enter Manually</button></div>';
+        const r = $('#pickerRetryInline');
+        const m = $('#pickerManualInline');
+        if (r) r.onclick = () => syncProducts(true);
+        if (m) m.onclick = () => { closeModal('pickerModal'); openItemModal(); };
+        return;
+      }
+
+      $('#pickerProducts').innerHTML = products.length
+        ? products.map((p) => `<button class="prod-item ${String(p.id) === String(pickerSelectedId) ? 'active' : ''}" data-product-id="${p.id}" type="button"><div>${esc(p.title)}</div><div class="meta">${(p.variants || []).length} variants</div></button>`).join('')
+        : '<div class="empty" style="margin:8px;">No products match your search.</div>';
+
+      const selected = state.products.find((p) => String(p.id) === String(pickerSelectedId));
+      if (!selected) {
+        $('#pickerVariants').innerHTML = '<div class="empty">Select a product to view variants.</div>';
+        return;
+      }
+
+      const variants = Array.isArray(selected.variants) && selected.variants.length ? selected.variants : [{ title: 'Default', sku: '', price: '' }];
+      const image = selected.image ? `<img src="${esc(selected.image)}" alt="${esc(selected.title)}" style="width:100%;max-height:170px;object-fit:cover;border:1px solid var(--border-mid);margin-bottom:.45rem;">` : '';
+
+      $('#pickerVariants').innerHTML = `<div class="commonbar"><div class="commonlab">Apply Common Price To All Variants</div><div class="commonrow"><input class="cbuy" type="number" min="0" step="0.01" placeholder="₹ Buy price for all"><input class="csale" type="number" min="0" step="0.01" placeholder="₹ Sale price for all"><button class="capply" type="button">→ Apply All</button></div></div>${image}<div style="font-weight:700;margin-bottom:6px;">${esc(selected.title)}</div>${variants.map((v, idx) => {
+        const exists = hasVariantInInventory(selected.id, v.title);
+        return `<div class="vrow" data-key="${selected.id}::${idx}" data-product-id="${selected.id}" data-variant-idx="${idx}"><div><div>${esc(v.title || 'Default')} ${exists ? '<span class="vdot" title="Already in inventory"></span>' : ''}</div><div class="vmeta">${esc(v.sku || 'No SKU')}${v.price ? ` · ₹${esc(String(v.price))}` : ''}</div></div><input class="vqty" type="number" min="0" value="0" placeholder="0"><input class="vbuy" type="number" min="0" step="0.01" placeholder="₹ Buy"><input class="vsale" type="number" min="0" step="0.01" placeholder="₹ Sale"><button class="vadd" type="button" disabled style="opacity:.3;cursor:not-allowed">+</button><span class="vok"></span></div>`;
+      }).join('')}`;
+
+      $$('#pickerVariants .vrow').forEach(updateVariantAddState);
+    }
+
+    function openItemModal(item) {
+      $('#itemForm').reset();
+      $('#itemEditId').value = '';
+      $('#itemShopifyId').value = '';
+      $('#itemDate').value = toInputDate();
+      $('#itemTitle').textContent = 'Add Inventory Item';
+      ['itemName', 'itemQty', 'itemBuyPrice', 'itemDate'].forEach((id) => $('#' + id).classList.remove('invalid'));
+
+      if (item) {
+        $('#itemTitle').textContent = 'Edit Inventory Item';
+        $('#itemEditId').value = item.id;
+        $('#itemShopifyId').value = item.shopifyProductId || '';
+        $('#itemName').value = item.name || '';
+        $('#itemVariant').value = item.variant || '';
+        $('#itemSku').value = item.sku || '';
+        $('#itemQty').value = int(item.quantity) || 1;
+        $('#itemBuyPrice').value = num(item.buyPrice) || '';
+        $('#itemDate').value = toInputDate(item.dateAdded);
+        $('#itemNotes').value = item.notes || '';
+      }
+
+      openModal('itemModal');
+      $('#itemName').focus();
+    }
+
+    function openSellModal(itemId) {
+      const item = state.inventory.find((x) => x.id === itemId && x.status === 'in_stock');
+      if (!item) return;
+      $('#sellForm').reset();
+      $('#sellInventoryId').value = item.id;
+      $('#sellName').value = item.variant ? `${item.name} (${item.variant})` : item.name;
+      $('#sellQty').value = int(item.quantity);
+      $('#sellQty').max = int(item.quantity);
+      $('#sellDate').value = toInputDate();
+      $('#sellPlatform').value = 'Direct';
+      $('#sellTitle').textContent = `MARK AS SOLD — ${item.name}${item.variant ? ` (${item.variant})` : ''}`;
+      $('#sellErr').textContent = '';
+      openModal('sellModal');
+      $('#sellQty').focus();
+    }
+
+    function validateItemForm() {
+      let ok = true;
+      const req = [
+        ['itemName', (v) => v.trim().length > 0],
+        ['itemQty', (v) => int(v) >= 1],
+        ['itemBuyPrice', (v) => num(v) > 0],
+        ['itemDate', (v) => !!v]
+      ];
+      req.forEach(([id, fn]) => {
+        const el = $('#' + id);
+        if (!fn(el.value)) { el.classList.add('invalid'); ok = false; } else el.classList.remove('invalid');
+      });
+      return ok;
+    }
+
+    function validateSellQty() {
+      const item = state.inventory.find((x) => x.id === $('#sellInventoryId').value && x.status === 'in_stock');
+      if (!item) return false;
+      const q = int($('#sellQty').value);
+      const max = int(item.quantity);
+      if (q < 1 || q > max) {
+        $('#sellErr').textContent = `Qty to sell must be between 1 and ${max}.`;
+        return false;
+      }
+      $('#sellErr').textContent = '';
+      return true;
+    }
+    async function syncProducts(manual) {
+      setSyncVisual('loading');
+      try {
+        let products = [];
+        try {
+          const resp = await fetch(SHOPIFY_URL, { cache: 'no-store' });
+          if (!resp.ok) throw new Error('status ' + resp.status);
+          const data = await resp.json();
+          products = Array.isArray(data.products) ? data.products.map((p) => ({
+            id: p.id,
+            title: p.title,
+            variants: Array.isArray(p.variants) ? p.variants.map((v) => ({ title: v.title || 'Default', sku: v.sku || '', price: v.price || '' })) : [],
+            image: Array.isArray(p.images) && p.images[0] && p.images[0].src ? p.images[0].src : null
+          })) : [];
+        } catch (fetchErr) {
+          const cbName = '__raptile_jsonp_' + Date.now();
+          products = await new Promise((resolve, reject) => {
+            let done = false;
+            const script = document.createElement('script');
+            const timer = setTimeout(() => {
+              if (done) return;
+              done = true;
+              delete window[cbName];
+              script.remove();
+              reject(new Error('jsonp timeout'));
+            }, 4500);
+            window[cbName] = (payload) => {
+              if (done) return;
+              done = true;
+              clearTimeout(timer);
+              delete window[cbName];
+              script.remove();
+              const raw = payload && Array.isArray(payload.products) ? payload.products : [];
+              resolve(raw.map((p) => ({
+                id: p.id,
+                title: p.title,
+                variants: Array.isArray(p.variants) ? p.variants.map((v) => ({ title: v.title || 'Default', sku: v.sku || '', price: v.price || '' })) : [],
+                image: Array.isArray(p.images) && p.images[0] && p.images[0].src ? p.images[0].src : null
+              })));
+            };
+            script.onerror = () => {
+              if (done) return;
+              done = true;
+              clearTimeout(timer);
+              delete window[cbName];
+              script.remove();
+              reject(new Error('jsonp failed'));
+            };
+            script.src = SHOPIFY_URL + '&callback=' + cbName;
+            document.body.appendChild(script);
+          });
+        }
+
+        if (!products.length) {
+          if (!state.products.length) showToast('Could not sync products - no cache available.', 'error');
+          else showToast('Could not sync products - using cached data', 'warning');
+          setSyncVisual('fail');
+          if (manual) renderPicker();
+          return;
+        }
+
+        mutateState(() => {
+          state.products = products;
+          state.lastSynced = new Date().toISOString();
+          logAction('sync', `Synced ${products.length} products from Shopify`, null);
+        });
+        setSyncVisual('ok');
+        showToast('Products synced successfully.', 'success');
+      } catch (e) {
+        console.error(e);
+        setSyncVisual('fail');
+        showToast('Could not sync products - using cached data', state.products.length ? 'warning' : 'error');
+      }
+    }
+
+    function syncProductsIfStale() {
+      try {
+        const stale = !state.lastSynced || (Date.now() - new Date(state.lastSynced).getTime()) > 24 * 60 * 60 * 1000;
+        if (stale) syncProducts(false);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function exportSalesCsv() {
+      if (!state.sales.length) {
+        showToast('No sales data to export.', 'warning');
+        return;
+      }
+      const headers = ['Date Sold', 'Product', 'Variant', 'Qty', 'Buy Price', 'Sale Price', 'Profit', 'Platform'];
+      const rows = state.sales.map((s) => [fmtDate(s.dateSold), s.name, s.variant || '', String(int(s.qtySold)), num(s.buyPrice).toFixed(2), num(s.salePrice).toFixed(2), num(s.profit).toFixed(2), s.platform]);
+      const csv = [headers, ...rows].map((r) => r.map((x) => `"${String(x).replaceAll('"', '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `raptile-sales-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSV exported.', 'success');
+    }
+
+    function exportBackup() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `raptile-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Backup exported.', 'success');
+    }
+
+    function importBackup(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ''));
+          if (!parsed || !Array.isArray(parsed.inventory) || !Array.isArray(parsed.sales) || !(Array.isArray(parsed.log) || Array.isArray(parsed.logs)) || !Array.isArray(parsed.products)) {
+            showToast('Invalid backup file structure.', 'error');
+            return;
+          }
+          if (!confirm('This will overwrite current data. Continue?')) return;
+          state = {
+            inventory: parsed.inventory || [],
+            sales: parsed.sales || [],
+            log: parsed.log || parsed.logs || [],
+            products: parsed.products || [],
+            lastSynced: parsed.lastSynced || null,
+            activeView: parsed.activeView || state.activeView || 'dashboard',
+            salesSubTab: parsed.salesSubTab || 'to_sell',
+            lastSaved: parsed.lastSaved || null
+          };
+          saveState();
+          renderActiveView();
+          showToast('Backup imported successfully.', 'success');
+        } catch (e) {
+          console.error(e);
+          showToast('Could not import backup JSON.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function bindEvents() {
+      $$('.nav-btn').forEach((b) => b.addEventListener('click', () => switchView(b.dataset.view)));
+      $('#menuBtn').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+      $('#addItemBtn').addEventListener('click', openProductPicker);
+      $('#syncBtn').addEventListener('click', () => syncProducts(true));
+      $('#retrySyncBtn').addEventListener('click', () => syncProducts(true));
+      $('#manualAddBtn').addEventListener('click', () => { closeModal('pickerModal'); openItemModal(); });
+
+      $('#globalSearch').addEventListener('input', () => renderActiveView());
+      $('#tabToSell').addEventListener('click', () => { state.salesSubTab = 'to_sell'; saveState(); renderSales(); });
+      $('#tabSold').addEventListener('click', () => { state.salesSubTab = 'sold'; saveState(); renderSales(); });
+
+      $('#exportSelect').addEventListener('change', (e) => {
+        const v = e.target.value;
+        e.target.value = '';
+        if (v === 'csv') exportSalesCsv();
+        if (v === 'backup') exportBackup();
+        if (v === 'import') $('#backupInput').click();
+      });
+      $('#footerExportBtn').addEventListener('click', exportBackup);
+      $('#footerImportBtn').addEventListener('click', () => $('#backupInput').click());
+      $('#backupInput').addEventListener('change', () => { importBackup($('#backupInput').files[0]); $('#backupInput').value = ''; });
+
+      $('#inventoryOut').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-a]');
+        if (!btn) return;
+        const item = state.inventory.find((x) => x.id === btn.dataset.id);
+        if (!item) return;
+        if (btn.dataset.a === 'sell') openSellModal(item.id);
+        if (btn.dataset.a === 'edit') openItemModal(item);
+        if (btn.dataset.a === 'del-inv') {
+          if (!confirm(`Delete ${item.name}? This cannot be undone.`)) return;
+          mutateState(() => {
+            state.inventory = state.inventory.filter((x) => x.id !== item.id);
+            logAction('delete', `Deleted inventory item ${item.name}${item.variant ? ` (${item.variant})` : ''}`, null);
+          });
+          showToast('Inventory item deleted.', 'warning');
+        }
+      });
+
+      $('#salesOut').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-a]');
+        if (!btn) return;
+        if (btn.dataset.a === 'sell') openSellModal(btn.dataset.id);
+        if (btn.dataset.a === 'del-sale') {
+          const sale = state.sales.find((x) => x.id === btn.dataset.id);
+          if (!sale) return;
+          if (!confirm(`Delete sale for ${sale.name}? This cannot be undone.`)) return;
+          mutateState(() => {
+            state.sales = state.sales.filter((x) => x.id !== sale.id);
+            logAction('delete', `Deleted sale entry for ${sale.name}${sale.variant ? ` (${sale.variant})` : ''}`, null);
+          });
+          showToast('Sale deleted.', 'warning');
+        }
+      });
+
+      $('#pickerSearch').addEventListener('input', renderPicker);
+      $('#pickerProducts').addEventListener('click', (e) => {
+        const btn = e.target.closest('.prod-item[data-product-id]');
+        if (!btn) return;
+        pickerSelectedId = btn.dataset.productId;
+        renderPicker();
+      });
+      $('#pickerVariants').addEventListener('input', (e) => {
+        const row = e.target.closest('.vrow');
+        if (row) updateVariantAddState(row);
+      });
+      $('#pickerVariants').addEventListener('click', (e) => {
+        const apply = e.target.closest('.capply');
+        if (apply) {
+          const b = ($('#pickerVariants .cbuy') || {}).value || '';
+          const s = ($('#pickerVariants .csale') || {}).value || '';
+          if (!b.trim() && !s.trim()) return;
+          $$('#pickerVariants .vrow').forEach((row) => {
+            const bi = row.querySelector('.vbuy');
+            const si = row.querySelector('.vsale');
+            if (b.trim() && bi) { bi.value = b; pulseFill(bi); }
+            if (s.trim() && si) { si.value = s; pulseFill(si); }
+            updateVariantAddState(row);
+          });
+          return;
+        }
+
+        const add = e.target.closest('.vadd');
+        if (!add) return;
+        const row = add.closest('.vrow');
+        if (!row) return;
+        const product = state.products.find((p) => String(p.id) === String(row.dataset.productId));
+        if (!product) return;
+        const variants = Array.isArray(product.variants) && product.variants.length ? product.variants : [{ title: 'Default', sku: '', price: '' }];
+        const variant = variants[int(row.dataset.variantIdx)] || variants[0];
+        const qtyInput = row.querySelector('.vqty');
+        const buyInput = row.querySelector('.vbuy');
+        const saleInput = row.querySelector('.vsale');
+        const ok = row.querySelector('.vok');
+        const qty = int(qtyInput.value);
+        const buy = num(buyInput.value);
+        if (qty < 1) { pulseInvalid(qtyInput); return; }
+        if (buy <= 0) { pulseInvalid(buyInput); return; }
+
+        quickAddVariant(product, variant, qty, buy);
+        row.classList.add('added');
+        ok.textContent = '✓';
+        if (quickAddTimers[row.dataset.key]) clearTimeout(quickAddTimers[row.dataset.key]);
+        quickAddTimers[row.dataset.key] = setTimeout(() => {
+          row.classList.remove('added');
+          ok.textContent = '';
+          qtyInput.value = '0';
+          buyInput.value = '';
+          if (saleInput) saleInput.value = '';
+          updateVariantAddState(row);
+        }, 1500);
+      });
+
+      $('#itemForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!validateItemForm()) {
+          showToast('Please fill all required fields correctly.', 'error');
+          return;
+        }
+
+        const payload = {
+          shopifyProductId: $('#itemShopifyId').value || null,
+          name: $('#itemName').value.trim(),
+          variant: $('#itemVariant').value.trim(),
+          sku: $('#itemSku').value.trim(),
+          buyPrice: num($('#itemBuyPrice').value),
+          quantity: int($('#itemQty').value),
+          dateAdded: toISO($('#itemDate').value),
+          notes: $('#itemNotes').value.trim(),
+          status: 'in_stock'
+        };
+
+        if (!$('#itemEditId').value) {
+          mutateState(() => {
+            state.inventory.push({ id: uid(), ...payload });
+            logAction('add', `Added ${payload.quantity}× ${payload.name}${payload.variant ? ` (${payload.variant})` : ''} @ ₹${payload.buyPrice}/unit`, payload.buyPrice * payload.quantity);
+          });
+          showToast('Inventory item added.', 'success');
+        } else {
+          mutateState(() => {
+            const item = state.inventory.find((x) => x.id === $('#itemEditId').value);
+            if (!item) return;
+            Object.assign(item, payload);
+            logAction('edit', `Edited ${payload.name}${payload.variant ? ` (${payload.variant})` : ''}`, null);
+          });
+          showToast('Inventory item updated.', 'success');
+        }
+        closeModal('itemModal');
+      });
+
+      $('#sellQty').addEventListener('input', validateSellQty);
+      $('#sellForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!validateSellQty()) {
+          showToast('Please fix sell quantity.', 'error');
+          return;
+        }
+
+        const item = state.inventory.find((x) => x.id === $('#sellInventoryId').value && x.status === 'in_stock');
+        if (!item) return;
+
+        const qtySold = int($('#sellQty').value);
+        const salePrice = num($('#sellPrice').value);
+        const dateSold = toISO($('#sellDate').value);
+        const platform = $('#sellPlatform').value || 'Direct';
+
+        if (salePrice <= 0) {
+          pulseInvalid($('#sellPrice'));
+          showToast('Sale price is required.', 'error');
+          return;
+        }
+
+        mutateState(() => {
+          item.quantity = int(item.quantity) - qtySold;
+          if (item.quantity <= 0) {
+            item.quantity = 0;
+            item.status = 'sold';
+          }
+
+          state.sales.push({
+            id: uid(),
+            inventoryId: item.id,
+            shopifyProductId: item.shopifyProductId || null,
+            name: item.name,
+            variant: item.variant,
+            buyPrice: num(item.buyPrice),
+            salePrice,
+            profit: (salePrice - num(item.buyPrice)) * qtySold,
+            qtySold,
+            dateSold,
+            platform
+          });
+
+          logAction('sell', `Sold ${qtySold}× ${item.name}${item.variant ? ` (${item.variant})` : ''} via ${platform}`, salePrice * qtySold);
+        });
+
+        closeModal('sellModal');
+        showToast('Sale recorded.', 'success');
+      });
+
+      $$('[data-close]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
+      $$('.modal-bg').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) closeModal(m.id); }));
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { closeAllModals(); return; }
+        const t = e.target;
+        const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+        if (!typing && e.key.toLowerCase() === 'n' && ['inventory', 'sales'].includes(state.activeView)) {
+          e.preventDefault();
+          openProductPicker();
+        }
+      });
+    }
+
+    function init() {
+      loadState();
+      bindEvents();
+      syncProductsIfStale();
+      switchView(state.activeView || 'dashboard', false);
+      if (saveTicker) clearInterval(saveTicker);
+      updateLastSavedText();
+      saveTicker = setInterval(updateLastSavedText, 10000);
+    }
+
+    window.addEventListener('error', (e) => {
+      console.error('Uncaught error:', e);
+      showToast('An unexpected error occurred', 'error');
+    });
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

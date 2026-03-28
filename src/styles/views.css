@@ -1,0 +1,265 @@
+.chart-wrap {
+  position: relative;
+  min-height: 260px;
+}
+
+.history-feed {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.history-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  align-items: start;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(17, 17, 17, 0.72);
+}
+
+.history-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--mono);
+}
+
+.history-meta {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: end;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.product-grid,
+.lot-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.product-card,
+.lot-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(17, 17, 17, 0.78);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: grid;
+}
+
+.product-card-media {
+  aspect-ratio: 16 / 11;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+
+.product-card-body {
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.card-row-between {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.product-card-copy {
+  color: var(--text-secondary);
+  min-height: 2.8em;
+}
+
+.variant-editor-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.variant-editor-head p {
+  color: var(--text-secondary);
+}
+
+.variant-editor-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.variant-editor-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.8fr 0.8fr auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.lot-card {
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.lot-progress {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.lot-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.lot-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-text));
+}
+
+.lot-items-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.lot-item-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+
+.lot-item-row strong,
+.lot-item-row span {
+  display: block;
+}
+
+.lot-item-row span {
+  color: var(--text-secondary);
+}
+
+.lot-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.migration-copy {
+  display: grid;
+  gap: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.migration-copy ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.export-sheet {
+  width: 720px;
+  padding: 1.5rem;
+}
+
+.export-sheet-card {
+  background: #0a0a0a;
+  color: #f0f0f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 1.4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.export-sheet-head {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.export-sheet-head p,
+.export-sheet-head span {
+  color: #888888;
+  font-family: var(--mono);
+}
+
+.export-sheet-head h2 {
+  font-size: 2.2rem;
+}
+
+.export-sheet-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+
+.export-sheet-summary div,
+.export-sheet-group {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.85rem;
+}
+
+.export-sheet-summary span {
+  display: block;
+  color: #888888;
+  margin-bottom: 0.3rem;
+}
+
+.export-sheet-group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.export-sheet-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+@media (max-width: 920px) {
+  .history-card {
+    grid-template-columns: 1fr;
+  }
+
+  .history-meta {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .variant-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .export-sheet-summary {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOT COUNTER — Raptile Studio</title>
+  <meta name="description" content="Lot management system for clothing manufacturing. Track products, sizes, colors, and manage lots with limits.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { opacity: 0; animation: reveal 0.3s ease 0.1s forwards; }
+    @keyframes reveal { to { opacity: 1; } }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+  <!-- Background Animation Canvas -->
+  <canvas id="bgCanvas"></canvas>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" aria-label="Menu">☰</button>
+
+  <div class="app-container">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>Lot<br>Counter</h1>
+        <div class="subtitle">Raptile Studio</div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-page="products">
+          <span class="nav-icon">📦</span>
+          <span>Products</span>
+          <span class="nav-badge">0</span>
+        </div>
+        <div class="nav-item" data-page="lots">
+          <span class="nav-icon">📋</span>
+          <span>Lots</span>
+          <span class="nav-badge">0</span>
+        </div>
+        <div class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙</span>
+          <span>Settings</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sync-status" style="justify-content: space-between;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="sync-dot"></span>
+            <span>Auto-Sync Active</span>
+          </div>
+          <div class="save-status" id="saveStatus" title="Auto-saving enabled" style="opacity: 0;"></div>
+        </div>
+        <button class="sync-btn">Sync Now</button>
+        <div class="sync-time" id="syncTime">Not synced yet</div>
+      </div>
+    </aside>
+
+    <!-- ── Main Content ── -->
+    <main class="main-content">
+
+      <!-- ═══ Products Page ═══ -->
+      <div class="page active" id="page-products">
+        <div class="page-header">
+          <div>
+            <h2>Products</h2>
+            <div class="page-desc">Product catalog ✦ auto-synced from Shopify</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <div class="search-bar">
+              <span class="search-icon">⌕</span>
+              <input id="productSearch" placeholder="Search products...">
+            </div>
+            <button class="btn btn-primary" onclick="openAddProductModal()">+ Add</button>
+          </div>
+        </div>
+        <div id="productsContent"></div>
+      </div>
+
+      <!-- ═══ Lots Page ═══ -->
+      <div class="page" id="page-lots">
+        <div class="page-header">
+          <div>
+            <h2>Lots</h2>
+            <div class="page-desc">Manufacturing lot management ✦ item limits</div>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateLotModal()">+ Create Lot</button>
+        </div>
+        <div class="stats-row" id="lotsStats"></div>
+        <div id="lotsContent"></div>
+      </div>
+
+      <!-- ═══ Settings Page ═══ -->
+      <div class="page" id="page-settings">
+        <div class="page-header">
+          <div>
+            <h2>Settings</h2>
+            <div class="page-desc">Shopify sync ✦ data management</div>
+          </div>
+        </div>
+        <div id="settingsContent"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Modal ── -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Modal</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

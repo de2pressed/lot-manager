@@ -1,0 +1,905 @@
+# Raptile Studio — Ops Hub: Full Build Specification
+
+## Project Context
+You are building a production-ready, team-facing operations app for Raptile Studio, an Indian 
+streetwear brand. The app merges two existing standalone browser apps (Lot Counter and Inventory 
+Tracker) into one unified tool. The final result is deployed on Vercel (Vite + vanilla JS) with 
+Supabase as the backend (Postgres, Auth, Realtime). No React, no Vue — vanilla JS, modular ES 
+modules, clean DOM-driven architecture.
+
+---
+
+## Tech Stack
+
+- **Frontend**: Vite, vanilla JS (ES modules), CSS custom properties
+- **Backend**: Supabase (Postgres, Auth, Realtime, Storage)
+- **Deployment**: Vercel (SPA + one serverless API function)
+- **Charts**: Chart.js (CDN)
+- **Export**: html2canvas (lot summary PNG), Papa Parse (sales CSV)
+- **Shopify sync**: Client-side fetch to /products.json
+
+---
+
+## File Structure
+/
+├── index.html               # App shell, auth gate
+├── vite.config.js
+├── .env                     # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+├── api/
+│   └── admin/
+│       └── create-user.js   # Vercel serverless — uses SUPABASE_SERVICE_KEY
+├── src/
+│   ├── main.js              # Entry, auth listener, router
+│   ├── supabase.js          # Supabase client singleton
+│   ├── auth/
+│   │   ├── login.js         # Login page render + form handler
+│   │   └── session.js       # Session helpers, role getter
+│   ├── router.js            # Hash-based SPA router
+│   ├── state.js             # Reactive state store (pub/sub pattern)
+│   ├── ui/
+│   │   ├── sidebar.js       # Navigation sidebar component
+│   │   ├── toast.js         # Toast notifications
+│   │   ├── modal.js         # Modal open/close utility
+│   │   └── layout.js        # App shell mount/unmount
+│   ├── views/
+│   │   ├── dashboard.js     # Analytics overview
+│   │   ├── lots.js          # Lot management
+│   │   ├── products.js      # Product catalog
+│   │   ├── inventory.js     # Inventory management
+│   │   ├── sales.js         # Sales (to-sell + sold)
+│   │   ├── history.js       # Activity log
+│   │   ├── admin.js         # User management (admin only)
+│   │   └── settings.js      # Shopify sync, export, import
+│   ├── services/
+│   │   ├── shopify.js       # Shopify product sync
+│   │   ├── lots.service.js  # Lot CRUD + push-to-inventory
+│   │   ├── inventory.service.js
+│   │   ├── sales.service.js
+│   │   ├── products.service.js
+│   │   └── log.service.js
+│   ├── migrations/
+│   │   └── localStorage.js  # One-time migration from old app data
+│   └── styles/
+│       ├── base.css
+│       ├── auth.css
+│       ├── layout.css
+│       ├── components.css
+│       └── views.css
+
+---
+
+## Supabase Database Schema
+
+Run this SQL exactly in the Supabase SQL editor.
+```sql
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- Profiles (extends auth.users)
+create table public.profiles (
+  id uuid references auth.users(id) on delete cascade primary key,
+  username text unique not null,
+  role text not null default 'viewer' check (role in ('admin', 'manager', 'ops', 'viewer')),
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+-- Products (unified Shopify catalog cache)
+create table public.products (
+  id uuid primary key default uuid_generate_v4(),
+  shopify_product_id bigint unique,
+  title text not null,
+  image_url text,
+  variants jsonb not null default '[]', 
+  -- each variant: { id, title, sku, price, color, size }
+  synced_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Lots
+create table public.lots (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  max_items integer not null default 100,
+  status text not null default 'open' check (status in ('open', 'full', 'pushed')),
+  pushed_at timestamptz,
+  pushed_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Lot items
+create table public.lot_items (
+  id uuid primary key default uuid_generate_v4(),
+  lot_id uuid references public.lots(id) on delete cascade not null,
+  product_id uuid references public.products(id) not null,
+  shopify_product_id bigint,
+  product_title text not null,
+  variant_title text not null,
+  variant_id text,
+  color text,
+  size text,
+  sku text,
+  qty integer not null default 1 check (qty > 0),
+  buy_price numeric(10,2),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Inventory (stock on hand — populated by pushing a lot)
+create table public.inventory (
+  id uuid primary key default uuid_generate_v4(),
+  lot_id uuid references public.lots(id),            -- null if manually added
+  lot_item_id uuid references public.lot_items(id),  -- null if manually added
+  product_id uuid references public.products(id),
+  shopify_product_id bigint,
+  product_title text not null,
+  variant_title text not null,
+  color text,
+  size text,
+  sku text,
+  buy_price numeric(10,2) not null default 0,
+  quantity integer not null default 0,
+  status text not null default 'in_stock' check (status in ('in_stock', 'low_stock', 'sold_out')),
+  notes text,
+  date_added timestamptz default now(),
+  created_by uuid references auth.users(id),
+  updated_at timestamptz default now()
+);
+
+-- Sales
+create table public.sales (
+  id uuid primary key default uuid_generate_v4(),
+  inventory_id uuid references public.inventory(id),
+  product_id uuid references public.products(id),
+  shopify_product_id bigint,
+  product_title text not null,
+  variant_title text not null,
+  buy_price numeric(10,2) not null,
+  sale_price numeric(10,2) not null,
+  profit numeric(10,2) generated always as (sale_price - buy_price) stored,
+  qty_sold integer not null default 1 check (qty_sold > 0),
+  platform text default 'Direct' check (
+    platform in ('Direct','Instagram DM','WhatsApp','Depop','Other')
+  ),
+  date_sold timestamptz default now(),
+  notes text,
+  created_by uuid references auth.users(id)
+);
+
+-- Activity log
+create table public.activity_log (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id),
+  username text,
+  type text not null, -- 'lot_created','lot_pushed','inventory_added','sale_recorded','product_synced', etc.
+  description text not null,
+  amount numeric(10,2),
+  ref_id uuid,        -- optional reference to the related record
+  ref_type text,      -- 'lot','inventory','sale'
+  created_at timestamptz default now()
+);
+
+-- Updated_at trigger function
+create or replace function update_updated_at()
+returns trigger as $$
+begin new.updated_at = now(); return new; end;
+$$ language plpgsql;
+
+create trigger products_updated_at before update on public.products
+  for each row execute function update_updated_at();
+create trigger lots_updated_at before update on public.lots
+  for each row execute function update_updated_at();
+create trigger lot_items_updated_at before update on public.lot_items
+  for each row execute function update_updated_at();
+create trigger inventory_updated_at before update on public.inventory
+  for each row execute function update_updated_at();
+
+-- Lot status auto-update trigger
+create or replace function update_lot_status()
+returns trigger as $$
+declare
+  total_qty integer;
+  max_cap integer;
+begin
+  select sum(qty) into total_qty from public.lot_items where lot_id = NEW.lot_id;
+  select max_items into max_cap from public.lots where id = NEW.lot_id;
+  if total_qty >= max_cap then
+    update public.lots set status = 'full' where id = NEW.lot_id and status = 'open';
+  else
+    update public.lots set status = 'open' where id = NEW.lot_id and status = 'full';
+  end if;
+  return NEW;
+end;
+$$ language plpgsql;
+
+create trigger lot_items_capacity after insert or update or delete on public.lot_items
+  for each row execute function update_lot_status();
+
+-- Inventory status auto-update trigger
+create or replace function update_inventory_status()
+returns trigger as $$
+begin
+  if NEW.quantity <= 0 then
+    NEW.status := 'sold_out';
+  elsif NEW.quantity <= 3 then
+    NEW.status := 'low_stock';
+  else
+    NEW.status := 'in_stock';
+  end if;
+  return NEW;
+end;
+$$ language plpgsql;
+
+create trigger inventory_status_update before insert or update on public.inventory
+  for each row execute function update_inventory_status();
+
+-- Profile auto-creation on signup
+create or replace function handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, username, role)
+  values (NEW.id, NEW.email, 'viewer');
+  return NEW;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function handle_new_user();
+```
+
+---
+
+## Row Level Security (RLS) Policies
+```sql
+-- Enable RLS on all tables
+alter table public.profiles enable row level security;
+alter table public.products enable row level security;
+alter table public.lots enable row level security;
+alter table public.lot_items enable row level security;
+alter table public.inventory enable row level security;
+alter table public.sales enable row level security;
+alter table public.activity_log enable row level security;
+
+-- Helper function to get current user role
+create or replace function get_my_role()
+returns text as $$
+  select role from public.profiles where id = auth.uid();
+$$ language sql security definer stable;
+
+-- Profiles: users can read all, only admin can write
+create policy "profiles_read_all" on public.profiles
+  for select using (auth.role() = 'authenticated');
+create policy "profiles_admin_write" on public.profiles
+  for all using (get_my_role() = 'admin');
+
+-- Products: everyone reads, manager+ writes
+create policy "products_read" on public.products
+  for select using (auth.role() = 'authenticated');
+create policy "products_write" on public.products
+  for all using (get_my_role() in ('admin','manager'));
+
+-- Lots: everyone reads, manager+ and ops can write
+create policy "lots_read" on public.lots
+  for select using (auth.role() = 'authenticated');
+create policy "lots_write" on public.lots
+  for all using (get_my_role() in ('admin','manager','ops'));
+
+-- Lot items: everyone reads, manager+ and ops write
+create policy "lot_items_read" on public.lot_items
+  for select using (auth.role() = 'authenticated');
+create policy "lot_items_write" on public.lot_items
+  for all using (get_my_role() in ('admin','manager','ops'));
+
+-- Inventory: everyone reads, manager+ writes
+create policy "inventory_read" on public.inventory
+  for select using (auth.role() = 'authenticated');
+create policy "inventory_write" on public.inventory
+  for all using (get_my_role() in ('admin','manager'));
+
+-- Sales: everyone reads, manager+ writes
+create policy "sales_read" on public.sales
+  for select using (auth.role() = 'authenticated');
+create policy "sales_write" on public.sales
+  for all using (get_my_role() in ('admin','manager'));
+
+-- Activity log: everyone reads, all authenticated can insert
+create policy "log_read" on public.activity_log
+  for select using (auth.role() = 'authenticated');
+create policy "log_insert" on public.activity_log
+  for insert with check (auth.role() = 'authenticated');
+```
+
+---
+
+## Vercel Serverless Function: User Creation
+
+File: `api/admin/create-user.js`
+```js
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY  // never expose this to the client
+);
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  // Verify the caller is an authenticated admin
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !user) return res.status(401).json({ error: 'Invalid token' });
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only' });
+  }
+
+  const { email, password, username, role } = req.body;
+  if (!email || !password || !username || !role) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  // Create auth user
+  const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true
+  });
+
+  if (createError) return res.status(500).json({ error: createError.message });
+
+  // Update their profile with username and role (trigger creates the profile row)
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .update({ username, role, created_by: user.id })
+    .eq('id', newUser.user.id);
+
+  if (profileError) return res.status(500).json({ error: profileError.message });
+
+  return res.status(200).json({ success: true, userId: newUser.user.id });
+}
+```
+
+Vercel env vars needed (set in Vercel dashboard, not in .env):
+- `SUPABASE_URL` 
+- `SUPABASE_SERVICE_KEY` (service role key — never in client)
+
+---
+
+## Supabase Client Setup
+
+File: `src/supabase.js`
+```js
+import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    realtime: { params: { eventsPerSecond: 10 } }
+  }
+);
+
+export async function getMyProfile() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+  return data;
+}
+
+export async function getMyRole() {
+  const profile = await getMyProfile();
+  return profile?.role ?? null;
+}
+```
+
+---
+
+## Authentication Flow
+
+File: `src/main.js`
+```js
+import { supabase } from './supabase.js';
+import { renderLogin } from './auth/login.js';
+import { mountApp } from './ui/layout.js';
+import { checkLocalStorageMigration } from './migrations/localStorage.js';
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (!session) {
+    renderLogin();
+    return;
+  }
+  // First time login — offer migration from old localStorage data
+  await checkLocalStorageMigration(session.user.id);
+  await mountApp(session);
+});
+```
+
+Login page requirements:
+- Clean centered card on dark background matching Raptile Studio dark aesthetic
+- Email + password inputs
+- No self-registration — show "Contact admin to get access" instead of a register link
+- On successful login, redirect to dashboard
+
+---
+
+## The Core Feature: Lot → Inventory Push
+
+This is the most important flow. Implement it as a transaction in `lots.service.js`.
+```js
+// src/services/lots.service.js
+
+export async function pushLotToInventory(lotId, userId) {
+  // 1. Fetch lot + all lot_items
+  const { data: lot } = await supabase
+    .from('lots')
+    .select('*, lot_items(*, products(*))')
+    .eq('id', lotId)
+    .single();
+
+  if (!lot || lot.status === 'pushed') throw new Error('Lot already pushed or not found');
+
+  // 2. Build inventory upsert rows — group lot_items by product+variant to merge qty
+  const inventoryMap = new Map();
+  for (const item of lot.lot_items) {
+    const key = `${item.product_id}_${item.variant_title}`;
+    if (inventoryMap.has(key)) {
+      inventoryMap.get(key).quantity += item.qty;
+    } else {
+      inventoryMap.set(key, {
+        lot_id: lotId,
+        lot_item_id: item.id,
+        product_id: item.product_id,
+        shopify_product_id: item.shopify_product_id,
+        product_title: item.product_title,
+        variant_title: item.variant_title,
+        color: item.color,
+        size: item.size,
+        sku: item.sku,
+        buy_price: item.buy_price ?? 0,
+        quantity: item.qty,
+        created_by: userId
+      });
+    }
+  }
+
+  const inventoryRows = [...inventoryMap.values()];
+
+  // 3. Upsert into inventory — if same lot+product+variant already exists, add qty
+  const { error: invError } = await supabase
+    .from('inventory')
+    .upsert(inventoryRows, {
+      onConflict: 'lot_id,product_id,variant_title',
+      ignoreDuplicates: false
+    });
+
+  if (invError) throw invError;
+
+  // 4. Mark lot as pushed
+  await supabase
+    .from('lots')
+    .update({ status: 'pushed', pushed_at: new Date().toISOString(), pushed_by: userId })
+    .eq('id', lotId);
+
+  // 5. Log it
+  await logActivity({
+    userId,
+    type: 'lot_pushed',
+    description: `Lot "${lot.name}" pushed to inventory (${lot.lot_items.length} variants)`,
+    refId: lotId,
+    refType: 'lot'
+  });
+
+  return { pushed: inventoryRows.length };
+}
+```
+
+The UI for this: on the Lots page, each lot card has a "Push to Inventory" button that is:
+- Disabled and labelled "Already Pushed" if `status === 'pushed'`
+- Active with a confirm modal for open/full lots
+- Only visible to admin and manager roles
+
+---
+
+## Realtime Subscriptions
+
+Set up in layout.js after mount, tear down on sign-out.
+```js
+const channels = [];
+
+export function subscribeToRealtime() {
+  channels.push(
+    supabase.channel('inventory-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' },
+        payload => state.emit('inventory:changed', payload))
+      .subscribe(),
+
+    supabase.channel('sales-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' },
+        payload => state.emit('sales:changed', payload))
+      .subscribe(),
+
+    supabase.channel('lots-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lots' },
+        payload => state.emit('lots:changed', payload))
+      .subscribe()
+  );
+}
+
+export function unsubscribeAll() {
+  channels.forEach(c => c.unsubscribe());
+  channels.length = 0;
+}
+```
+
+Views listen to `state.on('inventory:changed', ...)` and re-render their tables reactively.
+
+---
+
+## State Management
+
+Use a minimal pub/sub event bus. No Redux, no Zustand.
+```js
+// src/state.js
+const listeners = new Map();
+
+export const state = {
+  // In-memory cache (populated from Supabase on mount, kept fresh via realtime)
+  lots: [],
+  inventory: [],
+  sales: [],
+  products: [],
+  log: [],
+  currentUser: null,
+  currentRole: null,
+
+  emit(event, data) {
+    (listeners.get(event) || []).forEach(fn => fn(data));
+  },
+  on(event, fn) {
+    if (!listeners.has(event)) listeners.set(event, []);
+    listeners.get(event).push(fn);
+    return () => {
+      const fns = listeners.get(event) || [];
+      listeners.set(event, fns.filter(f => f !== fn));
+    };
+  }
+};
+```
+
+---
+
+## localStorage Migration
+
+File: `src/migrations/localStorage.js`
+```js
+export async function checkLocalStorageMigration(userId) {
+  const oldLotData = localStorage.getItem('lotCounter');
+  const oldInvData = localStorage.getItem('raptile_inventory_v1');
+  const alreadyMigrated = localStorage.getItem('raptile_migrated_v2');
+
+  if (alreadyMigrated || (!oldLotData && !oldInvData)) return;
+
+  // Show a migration offer modal
+  const confirmed = await showMigrationModal(
+    Boolean(oldLotData),
+    Boolean(oldInvData)
+  );
+
+  if (!confirmed) {
+    localStorage.setItem('raptile_migrated_v2', 'skipped');
+    return;
+  }
+
+  if (oldLotData) await migrateLots(JSON.parse(oldLotData), userId);
+  if (oldInvData) await migrateInventory(JSON.parse(oldInvData), userId);
+
+  localStorage.setItem('raptile_migrated_v2', 'done');
+}
+
+async function migrateLots(oldState, userId) {
+  // Map old lot structure to new schema
+  // old: { lots: [{ id, name, maxItems, items, createdAt }] }
+  for (const lot of (oldState.lots || [])) {
+    const { data: newLot } = await supabase
+      .from('lots')
+      .insert({ name: lot.name, max_items: lot.maxItems, created_by: userId })
+      .select().single();
+
+    const items = lot.items.map(item => ({
+      lot_id: newLot.id,
+      product_title: item.productName,
+      variant_title: [item.color, item.size].filter(Boolean).join(' / '),
+      color: item.color,
+      size: item.size,
+      qty: item.qty
+    }));
+
+    if (items.length) {
+      await supabase.from('lot_items').insert(items);
+    }
+  }
+}
+
+async function migrateInventory(oldState, userId) {
+  // Map old inventory structure to new schema
+  for (const item of (oldState.inventory || [])) {
+    await supabase.from('inventory').insert({
+      product_title: item.name,
+      variant_title: item.variant || '',
+      sku: item.sku,
+      buy_price: item.buyPrice || 0,
+      quantity: item.quantity || 0,
+      notes: item.notes,
+      created_by: userId
+    });
+  }
+  for (const sale of (oldState.sales || [])) {
+    await supabase.from('sales').insert({
+      product_title: sale.name,
+      variant_title: sale.variant || '',
+      buy_price: sale.buyPrice,
+      sale_price: sale.salePrice,
+      qty_sold: sale.qtySold,
+      platform: sale.platform,
+      date_sold: sale.dateSold
+    });
+  }
+}
+```
+
+---
+
+## Shopify Product Sync
+
+File: `src/services/shopify.js`
+```js
+export async function syncShopifyProducts() {
+  const storeUrl = 'https://raptilestudio.myshopify.com';
+  let allProducts = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      const res = await fetch(`${storeUrl}/products.json?limit=250&page=${page}`);
+      const { products } = await res.json();
+      if (!products.length) { hasMore = false; break; }
+      allProducts = allProducts.concat(products);
+      page++;
+    } catch {
+      hasMore = false;
+    }
+  }
+
+  // Normalize and upsert to Supabase products table
+  const rows = allProducts.map(p => ({
+    shopify_product_id: p.id,
+    title: p.title,
+    image_url: p.images?.[0]?.src ?? null,
+    variants: p.variants.map(v => ({
+      id: v.id,
+      title: v.title,
+      sku: v.sku,
+      price: parseFloat(v.price),
+      color: extractOption(p, v, ['color','colour']),
+      size: extractOption(p, v, ['size'])
+    })),
+    synced_at: new Date().toISOString()
+  }));
+
+  const { error } = await supabase
+    .from('products')
+    .upsert(rows, { onConflict: 'shopify_product_id' });
+
+  if (error) throw error;
+  return rows.length;
+}
+
+function extractOption(product, variant, names) {
+  for (const name of names) {
+    const opt = product.options.find(o => o.name.toLowerCase() === name);
+    if (!opt) continue;
+    const pos = opt.position;
+    return variant[`option${pos}`] ?? null;
+  }
+  return null;
+}
+```
+
+---
+
+## Shared UI Conventions
+
+**Sidebar navigation** — these views, in order:
+1. Dashboard
+2. Lots (includes "Push to Inventory" action)
+3. Products (Shopify catalog + manual)
+4. Inventory
+5. Sales (To Sell tab + Sold tab)
+6. History
+7. Admin (visible to admin role only)
+8. Settings
+
+**Role-gated rendering**: Every view that requires a specific role should call `guardRole(['admin','manager'])` at the top of its render function, which redirects to dashboard with a toast if unauthorized.
+
+**Toast types**: success, error, warning, info. Auto-dismiss after 4 seconds. Max 3 visible at once.
+
+**All modals** must:
+- Use a single shared `modal.js` open/close utility (not separate modal HTML per view)
+- Close on Escape key and overlay click
+- Trap focus within the modal while open
+
+**Keyboard shortcuts** (global):
+- `N` — open new lot modal (if on Lots view)
+- `N` — open product picker (if on Inventory view)
+- `Esc` — close active modal
+- `S` — trigger Shopify sync (Settings view only)
+
+---
+
+## Dashboard Analytics
+
+Compute from Supabase data on mount (not on every render):
+
+- Total revenue (sum of `sales.sale_price * qty_sold`)
+- Total cost (sum of `sales.buy_price * qty_sold`)
+- Total profit (sum of `sales.profit * qty_sold`)
+- Profit margin (profit / revenue × 100)
+- Units in stock (sum of `inventory.quantity` where status != 'sold_out')
+- Units sold (sum of `sales.qty_sold`)
+- Active lots (count of lots where status != 'pushed')
+- Low stock alerts (inventory items where status = 'low_stock')
+
+Charts (Chart.js):
+1. Monthly revenue — last 6 months bar chart
+2. Cumulative profit — line chart
+3. Top 5 products by units sold — horizontal bar chart
+4. Platform breakdown — doughnut chart (Direct, Instagram DM, WhatsApp, etc.)
+
+---
+
+## Admin View
+
+Only visible when `currentRole === 'admin'`.
+
+Features:
+- Table of all users (from `profiles`) with their role and creation date
+- "Create user" button → modal with email, username, password, role selector
+- Role can be changed inline via a dropdown (calls update on `profiles` table)
+- Delete user button (calls Supabase admin delete via the same serverless function with a `DELETE` endpoint)
+- Show which user last pushed each lot
+
+The user creation form sends:
+```js
+const session = await supabase.auth.getSession();
+fetch('/api/admin/create-user', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session.data.session.access_token}`
+  },
+  body: JSON.stringify({ email, password, username, role })
+});
+```
+
+---
+
+## Design System
+
+Dark aesthetic consistent with Raptile Studio brand. CSS custom properties:
+```css
+:root {
+  --bg-base: #0a0a0a;
+  --bg-surface: #111111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222222;
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
+  --accent: #00ff87;          /* neon green — primary CTA */
+  --accent-dim: rgba(0,255,135,0.12);
+  --accent-text: #00e07a;
+  --text-primary: #f0f0f0;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --danger: #ff4d4d;
+  --warning: #ffaa00;
+  --success: #00ff87;
+  --info: #4da6ff;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --font: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+```
+
+Lot status badges:
+- `open` → green dim pill
+- `full` → amber pill
+- `pushed` → muted gray pill
+
+Inventory status badges:
+- `in_stock` → green
+- `low_stock` → amber with pulsing dot
+- `sold_out` → red muted
+
+---
+
+## Export Features
+
+**Lot summary PNG** (via html2canvas):
+- Renders a styled summary card off-screen with lot name, date, item list grouped by product
+- Downloads as `lot-{name}-{date}.png`
+
+**Sales CSV** (via Papa Parse):
+- Columns: Date, Product, Variant, Platform, Buy Price, Sale Price, Profit, Qty
+- Downloads as `raptile-sales-{date}.csv`
+
+**Full backup JSON**:
+- Queries all tables and exports as a single JSON file
+- Import restores by upserting all tables (admin only)
+
+---
+
+## Environment Variables
+
+`.env` (client-safe — Vite exposes VITE_ prefixed vars only):
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+
+Vercel dashboard env vars (server-side only — never in .env):
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key
+
+---
+
+## Implementation Order
+
+1. Set up Supabase project and run the SQL schema
+2. Configure Vercel project and environment variables
+3. Scaffold Vite project with file structure above
+4. Implement auth flow (login page, session listener, profile fetch)
+5. Implement state store and router
+6. Build sidebar and layout shell
+7. Implement Shopify sync service
+8. Build Lots view (create, add items, capacity bar, push button)
+9. Build the push-to-inventory service (the critical flow)
+10. Build Inventory view (list, add manual, edit, sell action)
+11. Build Sales view (to-sell list, record sale modal, sold history)
+12. Build Dashboard with Chart.js analytics
+13. Build History / Activity log view
+14. Build Admin view (user management)
+15. Build Settings (sync controls, export/import)
+16. Implement Realtime subscriptions
+17. Implement localStorage migration
+18. Test all RLS policies with different role accounts
+19. Deploy to Vercel
+
+---
+
+## Critical Constraints
+
+- The service role key must NEVER appear in client-side code or VITE_ env vars
+- RLS policies are the security layer — frontend role checks are UX only
+- Every write operation must insert a row into `activity_log`
+- The lot → inventory push is irreversible from the UI (admin can manually edit the DB)
+- Realtime subscriptions should update the UI incrementally, not re-fetch all data
+- The app must work gracefully if Shopify sync fails (use cached products from Supabase)
+- All modals must be accessible (focus trap, Escape to close, ARIA roles)
