@@ -223,7 +223,7 @@ export async function deleteLotItem(itemId, userId) {
   });
 }
 
-export async function pushLotToInventory(lotId, userId) {
+async function syncLotInventoryToInventory(lotId, userId, { allowRepush = false, logType = 'lot_pushed' } = {}) {
   const { data: lot, error: lotError } = await supabase
     .from('lots')
     .select('*, lot_items(*)')
@@ -232,7 +232,11 @@ export async function pushLotToInventory(lotId, userId) {
 
   if (lotError) throw lotError;
 
-  if (!lot || lot.status === 'pushed') {
+  if (!lot) {
+    throw new Error('Lot not found.');
+  }
+
+  if (!allowRepush && lot.status === 'pushed') {
     throw new Error('Lot already pushed or not found.');
   }
 
@@ -300,8 +304,10 @@ export async function pushLotToInventory(lotId, userId) {
 
   await logActivity({
     userId,
-    type: 'lot_pushed',
-    description: `Lot "${lot.name}" pushed to inventory (${inventoryRows.length} merged variants)`,
+    type: logType,
+    description: allowRepush
+      ? `Lot "${lot.name}" repushed to inventory (${lot.lot_items.length} variants, additive)`
+      : `Lot "${lot.name}" pushed to inventory (${inventoryRows.length} merged variants)`,
     refId: lotId,
     refType: 'lot'
   });
@@ -310,4 +316,19 @@ export async function pushLotToInventory(lotId, userId) {
     lot: updatedLot,
     pushed: inventoryRows.length
   };
+}
+
+export async function pushLotToInventory(lotId, userId) {
+  return syncLotInventoryToInventory(lotId, userId);
+}
+
+/**
+ * Repush a previously pushed lot - adds quantities on top of existing inventory.
+ * Reuses the same additive push logic but skips the pushed-status guard.
+ */
+export async function repushLot(lotId, userId) {
+  return syncLotInventoryToInventory(lotId, userId, {
+    allowRepush: true,
+    logType: 'lot_repushed'
+  });
 }

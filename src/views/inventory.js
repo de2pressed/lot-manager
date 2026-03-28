@@ -15,6 +15,7 @@ import { showToast } from '../ui/toast.js';
 import {
   createInventoryItem,
   deleteInventoryItem,
+  deleteInventoryItems,
   updateInventoryItem,
   markDefected,
   revertDefected
@@ -23,6 +24,7 @@ import { recordSale } from '../services/sales.service.js';
 
 let searchTerm = '';
 let inventoryTab = 'all';
+const selectedInventoryIds = new Set();
 let popoverListenerBound = false;
 
 function closeAllPopovers() {
@@ -39,6 +41,81 @@ function ensurePopoverDismissal() {
   });
 
   popoverListenerBound = true;
+}
+
+function pruneSelectedInventoryIds() {
+  const visibleIds = new Set(state.inventory.map((item) => item.id));
+
+  for (const inventoryId of [...selectedInventoryIds]) {
+    if (!visibleIds.has(inventoryId)) {
+      selectedInventoryIds.delete(inventoryId);
+    }
+  }
+}
+
+function renderSelectedInventoryCountBar(selectedCount) {
+  if (!selectedCount) return '';
+
+  return `
+    <div class="batch-bar">
+      <div class="batch-bar-label">${selectedCount} item${selectedCount === 1 ? '' : 's'} selected</div>
+      <div class="batch-bar-actions">
+        <button class="button button-danger button-small" type="button" id="delete-selected-inv">Delete Selected</button>
+        <button class="button button-secondary button-small" type="button" id="clear-selected-inv">Clear</button>
+      </div>
+    </div>
+  `;
+}
+
+function showDeleteConfirmModal({ count, label, danger = false, onConfirm }) {
+  openModal({
+    title: `Delete ${label}?`,
+    body: `
+      <div class="migration-copy">
+        <p class="delete-warn-text">
+          This will permanently remove ${count} item${count === 1 ? '' : 's'} from inventory.
+          This cannot be undone.
+        </p>
+        ${
+          danger
+            ? `
+              <div class="field-group" style="margin-top:12px">
+                <label class="field-label" for="delete-confirm-input">Type DELETE to confirm</label>
+                <input
+                  type="text"
+                  id="delete-confirm-input"
+                  autocomplete="off"
+                  placeholder="DELETE"
+                >
+              </div>
+            `
+            : ''
+        }
+      </div>
+    `,
+    footer: `
+      <button class="button button-secondary button-small" type="button" data-close-modal>Cancel</button>
+      <button class="button button-danger button-small" type="button" id="confirm-delete-btn" ${danger ? 'disabled' : ''}>
+        Delete
+      </button>
+    `,
+    onOpen({ body: bodyTarget, footer: footerTarget, close }) {
+      const confirmButton = $('#confirm-delete-btn', footerTarget);
+      const confirmInput = $('#delete-confirm-input', bodyTarget);
+
+      if (danger && confirmButton && confirmInput) {
+        confirmInput.addEventListener('input', () => {
+          confirmButton.disabled = confirmInput.value !== 'DELETE';
+        });
+      }
+
+      confirmButton?.addEventListener('click', async () => {
+        if (confirmButton.disabled) return;
+        close('confirm');
+        await onConfirm?.();
+      });
+    }
+  });
 }
 
 function openInventoryModal(item = null) {
@@ -415,11 +492,22 @@ function renderInventoryTabs(counts) {
 }
 
 function renderStandardRows(rows, canWrite) {
+  const allVisibleSelected = rows.length > 0 && rows.every((item) => selectedInventoryIds.has(item.id));
+
   return `
     <div class="table-card">
       <table class="data-table">
         <thead>
           <tr>
+            ${
+              canWrite
+                ? `
+                  <th class="col-check">
+                    <input type="checkbox" id="select-all-inv" class="row-check" title="Select all" ${allVisibleSelected ? 'checked' : ''} />
+                  </th>
+                `
+                : ''
+            }
             <th>Product</th>
             <th>Variant</th>
             <th>SKU</th>
@@ -427,7 +515,7 @@ function renderStandardRows(rows, canWrite) {
             <th>Buy</th>
             <th>Status</th>
             <th>Date Added</th>
-            <th>Action</th>
+            <th class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -435,6 +523,15 @@ function renderStandardRows(rows, canWrite) {
             .map(
               (item) => `
                 <tr>
+                  ${
+                    canWrite
+                      ? `
+                        <td class="col-check">
+                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${item.id}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
+                        </td>
+                      `
+                      : ''
+                  }
                   <td>
                     <div>
                       <div>${escapeHtml(item.product_title)}</div>
@@ -454,7 +551,7 @@ function renderStandardRows(rows, canWrite) {
                   <td class="col-actions">
                     ${
                       canWrite
-                        ? `
+                      ? `
                           <div class="table-actions row-actions">
                             <button class="btn btn-primary btn-sm btn-sell" type="button" data-id="${item.id}" data-sell-inventory="${item.id}" ${
                               item.status === 'sold_out' || item.status === 'defected' ? 'disabled' : ''
@@ -478,10 +575,13 @@ function renderStandardRows(rows, canWrite) {
         </tbody>
       </table>
     </div>
+    ${renderSelectedInventoryCountBar(canWrite ? selectedInventoryIds.size : 0)}
   `;
 }
 
-function renderDefectedRows(rows) {
+function renderDefectedRows(rows, canWrite) {
+  const allVisibleSelected = rows.length > 0 && rows.every((item) => selectedInventoryIds.has(item.id));
+
   if (!rows.length) {
     return `
       <div class="empty-state-card">
@@ -496,12 +596,21 @@ function renderDefectedRows(rows) {
       <table class="data-table">
         <thead>
           <tr>
+            ${
+              canWrite
+                ? `
+                  <th class="col-check">
+                    <input type="checkbox" id="select-all-inv" class="row-check" title="Select all" ${allVisibleSelected ? 'checked' : ''} />
+                  </th>
+                `
+                : ''
+            }
             <th>Product</th>
             <th>Variant</th>
             <th>SKU</th>
             <th>Qty</th>
             <th>Defected</th>
-            <th>Action</th>
+            <th class="col-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -512,6 +621,15 @@ function renderDefectedRows(rows) {
 
               return `
                 <tr>
+                  ${
+                    canWrite
+                      ? `
+                        <td class="col-check">
+                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${item.id}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
+                        </td>
+                      `
+                      : ''
+                  }
                   <td>
                     <div>
                       <div>${escapeHtml(item.product_title)}</div>
@@ -536,11 +654,13 @@ function renderDefectedRows(rows) {
         </tbody>
       </table>
     </div>
+    ${renderSelectedInventoryCountBar(canWrite ? selectedInventoryIds.size : 0)}
   `;
 }
 
 export async function renderInventoryView(container) {
   ensurePopoverDismissal();
+  pruneSelectedInventoryIds();
 
   const canWrite = hasRole(['admin', 'manager']);
   const counts = getTabCounts();
@@ -560,7 +680,16 @@ export async function renderInventoryView(container) {
             <span>Search</span>
             <input id="inventory-search" value="${escapeHtml(searchTerm)}" placeholder="Search product, variant, SKU" />
           </label>
-          ${canWrite ? '<button class="button button-primary" id="inventory-add-button" type="button">Add Inventory</button>' : ''}
+          ${
+            canWrite
+              ? `
+                <button class="button button-danger button-small" id="btn-delete-all-inv" type="button">
+                  Delete All
+                </button>
+                <button class="button button-primary" id="inventory-add-button" type="button">Add Inventory</button>
+              `
+              : ''
+          }
         </div>
       </div>
 
@@ -569,7 +698,7 @@ export async function renderInventoryView(container) {
       ${
         rows.length
           ? inventoryTab === 'defected'
-            ? renderDefectedRows(defectedRows)
+            ? renderDefectedRows(defectedRows, canWrite)
             : renderStandardRows(rows, canWrite)
           : `
             <div class="empty-state-card">
@@ -588,10 +717,68 @@ export async function renderInventoryView(container) {
 
   $('#inventory-add-button', container)?.addEventListener('click', () => openInventoryModal());
 
+  $('#btn-delete-all-inv', container)?.addEventListener('click', () => {
+    closeAllPopovers();
+
+    const allIds = [...container.querySelectorAll('.inv-row-check')].map((checkbox) => checkbox.dataset.invId);
+    if (!allIds.length) {
+      showToast('No inventory items to delete.', 'info');
+      return;
+    }
+
+    showDeleteConfirmModal({
+      count: allIds.length,
+      label: `ALL ${allIds.length} inventory item${allIds.length === 1 ? '' : 's'}`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await deleteInventoryItems(allIds, state.currentUser.id);
+          selectedInventoryIds.clear();
+          showToast(`All ${allIds.length} items deleted.`, 'success');
+          renderInventoryView(container);
+        } catch (error) {
+          showToast(error.message || 'Unable to delete inventory items.', 'error');
+        }
+      }
+    });
+  });
+
+  const selectAll = $('#select-all-inv', container);
+  if (selectAll) {
+    selectAll.indeterminate =
+      rows.some((item) => selectedInventoryIds.has(item.id)) &&
+      !rows.every((item) => selectedInventoryIds.has(item.id));
+  }
+
   $$('[data-inventory-tab]', container).forEach((button) => {
     button.addEventListener('click', () => {
       inventoryTab = button.dataset.inventoryTab;
+      selectedInventoryIds.clear();
       closeAllPopovers();
+      renderInventoryView(container);
+    });
+  });
+
+  $('#select-all-inv', container)?.addEventListener('change', (event) => {
+    const visibleIds = [...container.querySelectorAll('.inv-row-check')].map((checkbox) => checkbox.dataset.invId);
+
+    if (event.target.checked) {
+      visibleIds.forEach((inventoryId) => selectedInventoryIds.add(inventoryId));
+    } else {
+      visibleIds.forEach((inventoryId) => selectedInventoryIds.delete(inventoryId));
+    }
+
+    renderInventoryView(container);
+  });
+
+  $$('[data-inv-id]', container).forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        selectedInventoryIds.add(checkbox.dataset.invId);
+      } else {
+        selectedInventoryIds.delete(checkbox.dataset.invId);
+      }
+
       renderInventoryView(container);
     });
   });
@@ -660,6 +847,35 @@ export async function renderInventoryView(container) {
         showToast(error.message || 'Unable to delete inventory item.', 'error');
       }
     });
+  });
+
+  $('#delete-selected-inv', container)?.addEventListener('click', () => {
+    const selectedIds = [...selectedInventoryIds];
+    if (!selectedIds.length) {
+      showToast('Select one or more inventory items first.', 'warning');
+      return;
+    }
+
+    showDeleteConfirmModal({
+      count: selectedIds.length,
+      label: `${selectedIds.length} selected item${selectedIds.length === 1 ? '' : 's'}`,
+      onConfirm: async () => {
+        try {
+          await deleteInventoryItems(selectedIds, state.currentUser.id);
+          selectedInventoryIds.clear();
+          showToast(`${selectedIds.length} items deleted.`, 'success');
+          renderInventoryView(container);
+        } catch (error) {
+          showToast(error.message || 'Unable to delete inventory items.', 'error');
+        }
+      }
+    });
+  });
+
+  $('#clear-selected-inv', container)?.addEventListener('click', () => {
+    selectedInventoryIds.clear();
+    closeAllPopovers();
+    renderInventoryView(container);
   });
 
   return {

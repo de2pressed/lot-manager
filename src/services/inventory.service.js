@@ -85,6 +85,48 @@ export async function deleteInventoryItem(inventoryId, userId) {
 }
 
 /**
+ * Permanently delete one or more inventory items.
+ * @param {string[]} inventoryIds
+ * @param {string} userId
+ */
+export async function deleteInventoryItems(inventoryIds, userId) {
+  const uniqueIds = [...new Set((inventoryIds || []).filter(Boolean))];
+  if (!uniqueIds.length) {
+    return 0;
+  }
+
+  const { data: items, error: readError } = await supabase
+    .from('inventory')
+    .select('id, product_title, variant_title')
+    .in('id', uniqueIds);
+
+  if (readError) throw readError;
+
+  const { error } = await supabase.from('inventory').delete().in('id', uniqueIds);
+  if (error) throw error;
+
+  const idSet = new Set(uniqueIds);
+  state.setCollection(
+    'inventory',
+    state.inventory.filter((item) => !idSet.has(item.id))
+  );
+
+  const label =
+    (items ?? [])
+      .map((item) => `${item.product_title} — ${item.variant_title}`)
+      .join(', ') || 'inventory items';
+
+  await logActivity({
+    userId,
+    type: 'inventory_deleted',
+    description: `Deleted ${uniqueIds.length} inventory item${uniqueIds.length > 1 ? 's' : ''}: ${label}`,
+    refType: 'inventory'
+  });
+
+  return uniqueIds.length;
+}
+
+/**
  * Mark one inventory item as defected.
  * @param {string} inventoryId
  * @param {string} userId

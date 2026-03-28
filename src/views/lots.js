@@ -16,6 +16,7 @@ import {
   createLot,
   deleteLot,
   deleteLotItem,
+  repushLot,
   pushLotToInventory,
   updateLotItem
 } from '../services/lots.service.js';
@@ -629,6 +630,7 @@ function renderLotCard(lot) {
   const displayedStatus = getDisplayedLotStatus(lot);
   const canWrite = hasRole(['admin', 'manager', 'ops']) && lot.status !== 'pushed';
   const canPush = hasRole(['admin', 'manager']) && total > 0;
+  const canRepush = hasRole(['admin', 'manager']) && lot.status === 'pushed';
 
   return `
     <article class="lot-card">
@@ -680,17 +682,29 @@ function renderLotCard(lot) {
         }
         <button class="button button-secondary button-small" type="button" data-export-lot="${lot.id}">Export PNG</button>
         ${
-          canPush
+          canRepush
             ? `
               <button
-                class="button ${lot.status === 'pushed' ? 'button-secondary' : 'button-primary'} button-small"
+                class="button button-secondary button-small btn-repush"
                 type="button"
-                data-push-lot="${lot.id}"
-                ${lot.status === 'pushed' ? 'disabled' : ''}
+                data-repush-lot="${lot.id}"
+                data-lot-id="${lot.id}"
+                data-lot-name="${escapeHtml(lot.name)}"
+                data-lot-items="${lot.lot_items?.length ?? 0}"
               >
-                ${lot.status === 'pushed' ? 'Already Pushed' : 'Push to Inventory'}
+                ↺ Repush
               </button>
             `
+            : canPush
+              ? `
+                <button
+                  class="button button-primary button-small"
+                  type="button"
+                  data-push-lot="${lot.id}"
+                >
+                  Push to Inventory
+                </button>
+              `
             : hasRole(['admin', 'manager'])
               ? '<button class="button button-secondary button-small" type="button" disabled>Empty Lot</button>'
               : ''
@@ -822,6 +836,35 @@ export async function renderLotsView(container) {
         renderLotsView(container);
       } catch (error) {
         showToast(error.message || 'Unable to push lot.', 'error');
+      }
+    });
+  });
+
+  $$('[data-repush-lot]', container).forEach((button) => {
+    button.addEventListener('click', async () => {
+      const lot = state.lots.find((entry) => entry.id === button.dataset.repushLot);
+      if (!lot) return;
+
+      const itemCount = Number(button.dataset.lotItems || lot.lot_items?.length || 0);
+
+      const confirmed = await confirmModal({
+        title: `Repush "${escapeHtml(lot.name)}"?`,
+        body: `
+          <p>This will add <strong>${itemCount}</strong> variant${itemCount === 1 ? '' : 's'} on top of existing inventory quantities.</p>
+          <p>Repush is additive. It does not reset or replace existing stock.</p>
+        `,
+        confirmLabel: 'Repush to Inventory',
+        tone: 'primary'
+      });
+
+      if (!confirmed) return;
+
+      try {
+        const result = await repushLot(lot.id, state.currentUser.id);
+        showToast(`Lot repushed - ${result.pushed} variants added to inventory.`, 'success');
+        renderLotsView(container);
+      } catch (error) {
+        showToast(error.message || 'Unable to repush lot.', 'error');
       }
     });
   });
