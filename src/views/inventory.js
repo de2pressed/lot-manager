@@ -357,7 +357,7 @@ function openSellModal(item) {
 
   footer.innerHTML = `
     <button class="button button-secondary" type="button" data-close-modal>Cancel</button>
-    <button class="button button-primary" type="submit" form="inventory-sell-form">Record Sale</button>
+    <button class="button button-primary" type="button" data-submit-sale>Record Sale</button>
   `;
 
   openModal({
@@ -365,8 +365,20 @@ function openSellModal(item) {
     description: 'This will immediately reduce the current stock count.',
     body,
     footer,
-    onOpen({ body: bodyTarget, close }) {
-      $('#inventory-sell-form', bodyTarget)?.addEventListener('submit', async (event) => {
+    onOpen({ body: bodyTarget, footer: footerTarget, close }) {
+      const form = $('#inventory-sell-form', bodyTarget);
+
+      $('[data-submit-sale]', footerTarget)?.addEventListener('click', () => {
+        if (!form) return;
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+          return;
+        }
+
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+
+      form?.addEventListener('submit', async (event) => {
         event.preventDefault();
 
         try {
