@@ -293,48 +293,80 @@ function openStagedLotItemModal(lot) {
 
       const stagedUnits = () => Array.from(staged.values()).reduce((total, item) => total + item.qty, 0);
       const capacityLeft = () => Math.max(0, remainingCapacity - stagedUnits());
-      const stageKeyFor = (productId, variant) => `${productId}::${variant.id ?? buildVariantTitle(variant)}`;
+      const variantKeyFor = (product, variant) => String(variant.id ?? `${product.id}::${buildVariantTitle(variant)}`);
 
-      const syncVariantButtons = () => {
-        $$('[data-stage-key]', bodyTarget).forEach((button) => {
-          const key = button.dataset.stageKey;
-          const item = staged.get(key);
-          button.textContent = item ? `${item.qty}` : '+';
-          button.classList.toggle('is-staged', Boolean(item));
-        });
+      const shakeStepper = (vid) => {
+        const incBtn = Array.from(bodyTarget.querySelectorAll('.stepper-inc')).find(
+          (button) => button.dataset.variantId === vid
+        );
+
+        if (!incBtn) return;
+
+        incBtn.classList.remove('btn-shake');
+        void incBtn.offsetWidth;
+        incBtn.classList.add('btn-shake');
+        setTimeout(() => incBtn.classList.remove('btn-shake'), 380);
       };
 
-      const renderStaged = () => {
-        if (!staged.size) {
-          stagedWrap.hidden = true;
-          confirmButton.disabled = true;
-          capacityCount.textContent = `${capacityLeft()}`;
-          syncVariantButtons();
-          return;
-        }
+      const updateVariantStepper = (vid) => {
+        const qty = staged.has(vid) ? staged.get(vid).qty : 0;
+        const stepper = Array.from(bodyTarget.querySelectorAll('.variant-stepper')).find(
+          (node) => node.dataset.variantId === vid
+        );
+        if (!stepper) return;
 
-        stagedWrap.hidden = false;
-        confirmButton.disabled = false;
-        capacityCount.textContent = `${capacityLeft()}`;
-        stagedList.innerHTML = [...staged.values()]
-          .map(
-            (item) => `
-              <div class="staged-row" data-stage-key="${item.stageKey}">
-                <div class="staged-info">
-                  <span class="staged-product">${escapeHtml(item.productTitle)}</span>
-                  <span class="staged-variant">${escapeHtml(item.variantTitle)}</span>
-                </div>
-                <div class="staged-controls">
-                  <button class="qty-btn" type="button" data-stage-key="${item.stageKey}" data-action="dec">−</button>
-                  <span class="qty-value">${item.qty}</span>
-                  <button class="qty-btn" type="button" data-stage-key="${item.stageKey}" data-action="inc">+</button>
-                  <button class="staged-remove" type="button" data-stage-key="${item.stageKey}">✕</button>
-                </div>
-              </div>
-            `
-          )
-          .join('');
-        syncVariantButtons();
+        const dec = stepper.querySelector('.stepper-dec');
+        const count = stepper.querySelector('.stepper-count');
+        const inc = stepper.querySelector('.stepper-inc');
+
+        if (qty === 0) {
+          dec.classList.add('stepper-hidden');
+          count.classList.add('stepper-hidden');
+          inc.classList.remove('stepper-active');
+          count.textContent = '';
+        } else {
+          dec.classList.remove('stepper-hidden');
+          count.classList.remove('stepper-hidden');
+          inc.classList.add('stepper-active');
+          count.textContent = qty;
+        }
+      };
+
+      const renderVariantRow = (variant, product, stagedQty) => {
+        const vid = variantKeyFor(product, variant);
+        return `
+          <div class="variant-row" data-variant-id="${vid}">
+            <div class="variant-info">
+              <span class="variant-title">${escapeHtml(buildVariantTitle(variant))}</span>
+              ${variant.sku ? `<span class="variant-sku">${escapeHtml(variant.sku)}</span>` : ''}
+            </div>
+            <div class="variant-stepper" data-variant-id="${vid}">
+              <button
+                class="stepper-btn stepper-dec ${stagedQty === 0 ? 'stepper-hidden' : ''}"
+                type="button"
+                data-action="dec"
+                data-variant-id="${vid}"
+              >−</button>
+              <span class="stepper-count ${stagedQty === 0 ? 'stepper-hidden' : ''}">
+                ${stagedQty || ''}
+              </span>
+              <button
+                class="stepper-btn stepper-inc ${stagedQty > 0 ? 'stepper-active' : ''}"
+                type="button"
+                data-action="inc"
+                data-variant-id="${vid}"
+                data-variant-real-id="${variant.id ?? ''}"
+                data-variant-title="${escapeHtml(buildVariantTitle(variant))}"
+                data-product-title="${escapeHtml(product.title)}"
+                data-product-id="${product.id}"
+                data-sku="${escapeHtml(variant.sku || '')}"
+                data-color="${escapeHtml(variant.color || '')}"
+                data-size="${escapeHtml(variant.size || '')}"
+                data-shopify-product-id="${escapeHtml(product.shopify_product_id || '')}"
+              >+</button>
+            </div>
+          </div>
+        `;
       };
 
       const renderVariants = (productId) => {
@@ -347,34 +379,45 @@ function openStagedLotItemModal(lot) {
 
         const variants = getProductVariants(product);
         variantRows.innerHTML = variants
+          .map((variant) => renderVariantRow(variant, product, staged.get(variantKeyFor(product, variant))?.qty ?? 0))
+          .join('');
+        variantList.hidden = false;
+      };
+
+      const renderStaged = () => {
+        if (!staged.size) {
+          stagedWrap.style.display = 'none';
+          stagedWrap.hidden = true;
+          confirmButton.disabled = true;
+          confirmButton.textContent = 'Add to Lot';
+          capacityCount.textContent = `${capacityLeft()}`;
+          return;
+        }
+
+        stagedWrap.hidden = false;
+        stagedWrap.style.display = 'block';
+        confirmButton.disabled = false;
+
+        const totalQty = Array.from(staged.values()).reduce((sum, item) => sum + item.qty, 0);
+        confirmButton.textContent = `Add ${totalQty} item${totalQty !== 1 ? 's' : ''} to Lot`;
+        capacityCount.textContent = `${capacityLeft()}`;
+
+        stagedList.innerHTML = [...staged.entries()]
           .map(
-            (variant) => `
-              <div class="variant-row">
-                <div class="variant-info">
-                  <span class="variant-title">${escapeHtml(buildVariantTitle(variant))}</span>
-                  ${variant.sku ? `<span class="variant-sku">${escapeHtml(variant.sku)}</span>` : ''}
+            ([vid, item]) => `
+              <div class="staged-row" data-vid="${vid}">
+                <div class="staged-info">
+                  <span class="staged-product">${escapeHtml(item.productTitle)}</span>
+                  <span class="staged-variant">${escapeHtml(item.variantTitle)}</span>
                 </div>
-                <button
-                  class="btn-add-variant"
-                  type="button"
-                  data-stage-key="${stageKeyFor(product.id, variant)}"
-                  data-product-id="${product.id}"
-                  data-product-title="${escapeHtml(product.title)}"
-                  data-variant-id="${variant.id ?? ''}"
-                  data-variant-title="${escapeHtml(buildVariantTitle(variant))}"
-                  data-color="${escapeHtml(variant.color || '')}"
-                  data-size="${escapeHtml(variant.size || '')}"
-                  data-sku="${escapeHtml(variant.sku || '')}"
-                  data-shopify-product-id="${escapeHtml(product.shopify_product_id || '')}"
-                >
-                  +
-                </button>
+                <div class="staged-right">
+                  <span class="staged-qty">× ${item.qty}</span>
+                  <button class="staged-remove" type="button" data-vid="${vid}" title="Remove">✕</button>
+                </div>
               </div>
             `
           )
           .join('');
-        variantList.hidden = false;
-        syncVariantButtons();
       };
 
       const syncCapacity = () => {
@@ -391,85 +434,70 @@ function openStagedLotItemModal(lot) {
       });
 
       bodyTarget.addEventListener('click', async (event) => {
-        const addButton = event.target.closest('.btn-add-variant');
-        if (addButton) {
-          const stageKey = addButton.dataset.stageKey;
-          const existing = staged.get(stageKey);
+        const stepperBtn = event.target.closest('.stepper-btn');
+        if (stepperBtn) {
+          const action = stepperBtn.dataset.action;
+          const vid = stepperBtn.dataset.variantId;
+          const existing = staged.get(vid);
 
-          if (!existing && capacityLeft() <= 0) {
-            showToast('This lot is at capacity.', 'warning');
-            return;
-          }
-
-          if (existing) {
-            if (capacityLeft() <= 0) {
+          if (action === 'inc') {
+            if (!existing && capacityLeft() <= 0) {
               showToast('This lot is at capacity.', 'warning');
               return;
             }
 
-            existing.qty += 1;
-            addButton.classList.add('btn-shake');
-            addButton.textContent = `${existing.qty}`;
-            setTimeout(() => addButton.classList.remove('btn-shake'), 350);
-          } else {
-            staged.set(stageKey, {
-              stageKey,
-              productId: addButton.dataset.productId,
-              productTitle: addButton.dataset.productTitle,
-              shopifyProductId: addButton.dataset.shopifyProductId || null,
-              variantId: addButton.dataset.variantId || null,
-              variantTitle: addButton.dataset.variantTitle,
-              color: addButton.dataset.color || null,
-              size: addButton.dataset.size || null,
-              sku: addButton.dataset.sku || null,
-              qty: 1,
-              buyPrice: Number(buyPriceInput.value || 0),
-            });
-            addButton.classList.add('btn-shake');
-            addButton.textContent = '1';
-            setTimeout(() => addButton.classList.remove('btn-shake'), 350);
-          }
+            if (existing) {
+              if (capacityLeft() <= 0) {
+                showToast('This lot is at capacity.', 'warning');
+                return;
+              }
 
-          renderStaged();
-          return;
-        }
-
-        const qtyButton = event.target.closest('.qty-btn');
-        if (qtyButton) {
-          const item = staged.get(qtyButton.dataset.stageKey);
-          if (!item) return;
-
-          if (qtyButton.dataset.action === 'inc') {
-            if (capacityLeft() <= 0) {
-              showToast('This lot is at capacity.', 'warning');
-              return;
-            }
-
-            item.qty += 1;
-          } else if (qtyButton.dataset.action === 'dec') {
-            item.qty -= 1;
-            if (item.qty <= 0) {
-              staged.delete(item.stageKey);
+              existing.qty += 1;
+            } else {
+              staged.set(vid, {
+                variantId: stepperBtn.dataset.variantRealId || null,
+                variantTitle: stepperBtn.dataset.variantTitle,
+                productTitle: stepperBtn.dataset.productTitle,
+                productId: stepperBtn.dataset.productId,
+                shopifyProductId: stepperBtn.dataset.shopifyProductId || null,
+                sku: stepperBtn.dataset.sku || null,
+                color: stepperBtn.dataset.color || null,
+                size: stepperBtn.dataset.size || null,
+                qty: 1,
+                buyPrice: Number(buyPriceInput.value || 0)
+              });
             }
           }
 
+          if (action === 'dec') {
+            if (!existing) return;
+
+            existing.qty -= 1;
+            if (existing.qty <= 0) {
+              staged.delete(vid);
+            }
+          }
+
+          shakeStepper(vid);
+          updateVariantStepper(vid);
           renderStaged();
           return;
         }
 
         const removeButton = event.target.closest('.staged-remove');
         if (removeButton) {
-          staged.delete(removeButton.dataset.stageKey);
-          renderStaged();
-          return;
-        }
+          const vid = removeButton.dataset.vid;
+          if (!vid || !staged.has(vid)) return;
 
+          staged.delete(vid);
+          updateVariantStepper(vid);
+          renderStaged();
+        }
       });
 
       footer.addEventListener('click', async (event) => {
         const confirmAdd = event.target.closest('#confirm-add-lot');
-        if (!confirmAdd) return;
-        if (!staged.size) return;
+        if (!confirmAdd || !staged.size) return;
 
         try {
           const items = [...staged.values()];
