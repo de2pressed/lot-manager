@@ -373,7 +373,8 @@ function openSellModal(item) {
     description: 'This will immediately reduce the current stock count.',
     body,
     footer,
-    onOpen({ body: bodyTarget, close }) {
+    onOpen({ body: bodyTarget, footer: footerTarget, close }) {
+      const liveSubmitButton = footerTarget?.querySelector('.button-primary');
       const form = $('#inventory-sell-form', bodyTarget);
 
       const handleSubmit = async () => {
@@ -386,17 +387,15 @@ function openSellModal(item) {
             throw new Error('Enter a valid sold quantity.');
           }
 
-          if (Number.isNaN(salePrice) || salePrice < 0) {
-            throw new Error('Enter a valid sale price.');
+          if (Number.isNaN(salePrice) || salePrice <= 0) {
+            throw new Error('Enter a valid sale price greater than 0.');
           }
 
           if (!dateValue) {
             throw new Error('Select a sale date.');
           }
 
-          if (submitButton) {
-            submitButton.disabled = true;
-          }
+          if (liveSubmitButton) liveSubmitButton.disabled = true;
 
           await recordSale(
             {
@@ -417,13 +416,11 @@ function openSellModal(item) {
         } catch (error) {
           showToast(error.message || 'Unable to record sale.', 'error');
         } finally {
-          if (submitButton) {
-            submitButton.disabled = false;
-          }
+          if (liveSubmitButton) liveSubmitButton.disabled = false;
         }
       };
 
-      submitButton.addEventListener('click', handleSubmit);
+      liveSubmitButton?.addEventListener('click', handleSubmit);
 
       form?.addEventListener('submit', async (event) => {
         event.preventDefault();
