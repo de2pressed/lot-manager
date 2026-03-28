@@ -123,7 +123,7 @@ export async function renderAdminView(container) {
                         <td>
                           ${
                             profile.id === state.currentUser.id
-                              ? `<span class="muted-copy">Current user</span>`
+                              ? `<span class="badge badge-info">${escapeHtml(profile.role)}</span>`
                               : `<select class="inline-select" data-profile-role="${profile.id}">
                                   ${ROLE_OPTIONS.map(
                                     (role) =>

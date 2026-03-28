@@ -130,8 +130,8 @@ function initCharts() {
             {
               label: 'Revenue',
               data: monthlyRevenue.map((entry) => entry.total),
-              backgroundColor: '#00ff87aa',
-              borderColor: '#00ff87',
+              backgroundColor: '#00e676aa',
+              borderColor: '#00e676',
               borderWidth: 1
             }
           ]
@@ -149,8 +149,8 @@ function initCharts() {
             {
               label: 'Cumulative Profit',
               data: cumulativeProfit.map((entry) => entry.value),
-              borderColor: '#4da6ff',
-              backgroundColor: 'rgba(77, 166, 255, 0.16)',
+              borderColor: '#3d9eff',
+              backgroundColor: 'rgba(61, 158, 255, 0.16)',
               tension: 0.3,
               fill: true
             }
@@ -169,8 +169,8 @@ function initCharts() {
             {
               label: 'Units Sold',
               data: topProducts.map((entry) => entry.value),
-              backgroundColor: '#ffaa00bb',
-              borderColor: '#ffaa00',
+              backgroundColor: '#f0a500bb',
+              borderColor: '#f0a500',
               borderWidth: 1
             }
           ]
@@ -190,7 +190,7 @@ function initCharts() {
           datasets: [
             {
               data: platformBreakdown.map((entry) => entry.value),
-              backgroundColor: ['#00ff87', '#4da6ff', '#ffaa00', '#ff4d4d', '#888888']
+              backgroundColor: ['#00e676', '#3d9eff', '#f0a500', '#ff4444', '#8a8a8a']
             }
           ]
         },
@@ -199,7 +199,7 @@ function initCharts() {
           plugins: {
             legend: {
               labels: {
-                color: '#f0f0f0'
+                color: '#efefef'
               }
             }
           }
@@ -220,27 +220,34 @@ function baseChartOptions() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      tooltip: {
+        backgroundColor: '#161616',
+        borderColor: 'rgba(255,255,255,0.10)',
+        borderWidth: 1,
+        titleColor: '#efefef',
+        bodyColor: '#efefef'
+      },
       legend: {
         labels: {
-          color: '#f0f0f0'
+          color: '#efefef'
         }
       }
     },
     scales: {
       x: {
         ticks: {
-          color: '#888888'
+          color: '#8a8a8a'
         },
         grid: {
-          color: 'rgba(255,255,255,0.08)'
+          color: 'rgba(255,255,255,0.05)'
         }
       },
       y: {
         ticks: {
-          color: '#888888'
+          color: '#8a8a8a'
         },
         grid: {
-          color: 'rgba(255,255,255,0.08)'
+          color: 'rgba(255,255,255,0.05)'
         }
       }
     }
