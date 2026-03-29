@@ -56,7 +56,10 @@ export async function recordSale(
     .select()
     .single();
 
-  if (saleError) throw saleError;
+  if (saleError) {
+    console.error('Supabase sales insert error:', JSON.stringify(saleError, null, 2));
+    throw saleError;
+  }
 
   const { data: updatedInventory, error: inventoryUpdateError } = await supabase
     .from('inventory')

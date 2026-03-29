@@ -86,7 +86,18 @@ export function toInputDate(value = new Date()) {
 }
 
 export function inputDateToIso(value) {
-  return value ? new Date(`${value}T00:00:00`).toISOString() : null;
+  if (!value) return new Date().toISOString();
+
+  const [year, month, day] = String(value)
+    .split('-')
+    .map((part) => Number(part));
+
+  if (!year || !month || !day) {
+    return new Date().toISOString();
+  }
+
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(utcDate.getTime()) ? new Date().toISOString() : utcDate.toISOString();
 }
 
 export function downloadBlob(blob, filename) {
