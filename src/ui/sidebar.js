@@ -51,7 +51,7 @@ export function renderSidebar(activeRoute) {
     <div class="sidebar-footer">
       <span class="role-chip">${escapeHtml(role)}</span>
       <span class="live-chip">Realtime ready</span>
-      <span class="version-chip">v1.07</span>
+      <span class="version-chip">v1.08</span>
     </div>
   `;
 }
