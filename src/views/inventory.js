@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { hasRole } from '../utils/access.js';
+import { hasRole, requireCurrentUser } from '../utils/access.js';
 import { $, $$ } from '../utils/dom.js';
 import {
   escapeHtml,
@@ -10,7 +10,7 @@ import {
 } from '../utils/format.js';
 import { SALE_PLATFORMS, INVENTORY_STATUS_LABELS } from '../utils/constants.js';
 import { buildVariantTitle, findVariant, getProductVariants } from '../utils/products.js';
-import { confirmModal, openModal } from '../ui/modal.js';
+import { confirmModal, isModalOpen, openModal } from '../ui/modal.js';
 import { showToast } from '../ui/toast.js';
 import {
   createInventoryItem,
@@ -51,6 +51,47 @@ function pruneSelectedInventoryIds() {
       selectedInventoryIds.delete(inventoryId);
     }
   }
+}
+
+function renderInventoryStats() {
+  const items = state.inventory;
+
+  const totalUnits = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const inStockUnits = items
+    .filter((item) => item.status === 'in_stock' || item.status === 'low_stock')
+    .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const lowStockCount = items.filter((item) => item.status === 'low_stock').length;
+  const soldOutCount = items.filter((item) => item.status === 'sold_out').length;
+  const defectedCount = items.filter((item) => item.status === 'defected').length;
+
+  return `
+    <div class="inventory-stats-bar" aria-label="Inventory summary">
+      <div class="inv-stat">
+        <span class="inv-stat-value">${totalUnits.toLocaleString()}</span>
+        <span class="inv-stat-label">Total Units</span>
+      </div>
+      <div class="inv-stat-divider"></div>
+      <div class="inv-stat">
+        <span class="inv-stat-value">${inStockUnits.toLocaleString()}</span>
+        <span class="inv-stat-label">Available</span>
+      </div>
+      <div class="inv-stat-divider"></div>
+      <div class="inv-stat inv-stat--warning">
+        <span class="inv-stat-value">${lowStockCount}</span>
+        <span class="inv-stat-label">Low Stock</span>
+      </div>
+      <div class="inv-stat-divider"></div>
+      <div class="inv-stat inv-stat--danger">
+        <span class="inv-stat-value">${soldOutCount}</span>
+        <span class="inv-stat-label">Sold Out</span>
+      </div>
+      <div class="inv-stat-divider"></div>
+      <div class="inv-stat inv-stat--muted">
+        <span class="inv-stat-value">${defectedCount}</span>
+        <span class="inv-stat-label">Defected</span>
+      </div>
+    </div>
+  `;
 }
 
 function renderSelectedInventoryCountBar(selectedCount) {
@@ -137,7 +178,7 @@ function openInventoryModal(item = null) {
             ${state.products
               .map(
                 (product) => `
-                  <option value="${product.id}" ${product.id === selectedProduct?.id ? 'selected' : ''}>
+                  <option value="${escapeHtml(product.id)}" ${product.id === selectedProduct?.id ? 'selected' : ''}>
                     ${escapeHtml(product.title)}
                   </option>
                 `
@@ -175,7 +216,7 @@ function openInventoryModal(item = null) {
         </label>
         <label class="field">
           <span>Buy Price</span>
-          <input id="inventory-buy-price" type="number" min="0" step="0.01" value="${item?.buy_price ?? ''}" required />
+          <input id="inventory-buy-price" type="number" min="0" step="0.01" value="${item?.buy_price ?? ''}" placeholder="0.00" required />
         </label>
         <label class="field">
           <span>Date Added</span>
@@ -262,6 +303,9 @@ function openInventoryModal(item = null) {
         event.preventDefault();
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const product =
             state.products.find((entry) => entry.id === sourceSelect.value) ?? null;
 
@@ -286,10 +330,10 @@ function openInventoryModal(item = null) {
           }
 
           if (item) {
-            await updateInventoryItem(item.id, payload, state.currentUser.id);
+            await updateInventoryItem(item.id, payload, userId);
             showToast('Inventory item updated.', 'success');
           } else {
-            await createInventoryItem(payload, state.currentUser.id);
+            await createInventoryItem(payload, userId);
             showToast('Inventory item added.', 'success');
           }
 
@@ -330,7 +374,7 @@ function openSellModal(item) {
         </label>
         <label class="field">
           <span>Sale Price</span>
-          <input id="inventory-sell-price" type="number" min="0" step="0.01" required />
+          <input id="inventory-sell-price" type="number" min="0" step="0.01" placeholder="0 for free" required />
         </label>
         <label class="field">
           <span>Platform</span>
@@ -379,6 +423,9 @@ function openSellModal(item) {
 
       const handleSubmit = async () => {
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const qtySold = Number($('#inventory-sell-qty', bodyTarget).value);
           const salePrice = Number($('#inventory-sell-price', bodyTarget).value);
           const dateValue = $('#inventory-sell-date', bodyTarget).value;
@@ -387,8 +434,8 @@ function openSellModal(item) {
             throw new Error('Enter a valid sold quantity.');
           }
 
-          if (Number.isNaN(salePrice) || salePrice <= 0) {
-            throw new Error('Enter a valid sale price greater than 0.');
+          if (Number.isNaN(salePrice) || salePrice < 0) {
+            throw new Error('Enter a valid sale price (0 for free items).');
           }
 
           if (!dateValue) {
@@ -407,7 +454,7 @@ function openSellModal(item) {
               notes: $('#inventory-sell-notes', bodyTarget).value.trim(),
               buyerName: $('#inventory-sell-buyer-name', bodyTarget).value.trim()
             },
-            state.currentUser.id
+            userId
           );
 
           close('saved');
@@ -443,8 +490,8 @@ function openDefectPopover(trigger, item) {
     <div class="popover-title">Mark as defected?</div>
     <div class="popover-desc">Reason is optional. Defected items will be excluded from active inventory and sales.</div>
     <div class="field-group" style="margin-bottom: 12px;">
-      <label class="field-label" for="defect-reason-${item.id}">Reason (optional)</label>
-      <input id="defect-reason-${item.id}" type="text" autocomplete="off" placeholder="e.g. print misaligned" />
+      <label class="field-label" for="defect-reason-${escapeHtml(item.id)}">Reason (optional)</label>
+      <input id="defect-reason-${escapeHtml(item.id)}" type="text" autocomplete="off" placeholder="e.g. print misaligned" />
     </div>
     <div class="popover-actions">
       <button class="button button-secondary button-small" type="button" data-defect-cancel>Cancel</button>
@@ -463,8 +510,11 @@ function openDefectPopover(trigger, item) {
     }
 
     try {
+      const userId = requireCurrentUser();
+      if (!userId) return;
+
       const reason = $(`#defect-reason-${item.id}`, popover)?.value.trim() || '';
-      await markDefected(item.id, state.currentUser.id, reason);
+      await markDefected(item.id, userId, reason);
       popover.remove();
       showToast('Item marked as defected.', 'success');
       renderInventoryView(document.getElementById('view-root'));
@@ -563,7 +613,7 @@ function renderStandardRows(rows, canWrite) {
                     canWrite
                       ? `
                         <td class="col-check">
-                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${item.id}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
+                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${escapeHtml(item.id)}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
                         </td>
                       `
                       : ''
@@ -582,23 +632,23 @@ function renderStandardRows(rows, canWrite) {
                   <td>${item.sku ? escapeHtml(item.sku) : '&mdash;'}</td>
                   <td>${item.quantity}</td>
                   <td>${formatCurrency(item.buy_price)}</td>
-                  <td><span class="status-badge status-${item.status}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
+                  <td><span class="status-badge status-${escapeHtml(item.status)}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
                   <td>${formatDate(item.date_added)}</td>
                   <td class="col-actions">
                     ${
                       canWrite
                       ? `
                           <div class="table-actions row-actions">
-                            <button class="btn btn-primary btn-sm btn-sell" type="button" data-id="${item.id}" data-sell-inventory="${item.id}" ${
+                            <button class="btn btn-primary btn-sm btn-sell" type="button" data-id="${escapeHtml(item.id)}" data-sell-inventory="${escapeHtml(item.id)}" ${
                               item.status === 'sold_out' || item.status === 'defected' ? 'disabled' : ''
                             }>Sell</button>
-                            <button class="btn btn-ghost btn-sm btn-edit-inv" type="button" data-id="${item.id}" data-edit-inventory="${item.id}">Edit</button>
+                            <button class="btn btn-ghost btn-sm btn-edit-inv" type="button" data-id="${escapeHtml(item.id)}" data-edit-inventory="${escapeHtml(item.id)}">Edit</button>
                             ${
                               item.status !== 'defected'
-                                ? `<div class="action-wrap"><button class="btn btn-ghost btn-sm btn-defect" type="button" data-id="${item.id}" data-product="${escapeHtml(item.product_title)}" data-variant="${escapeHtml(item.variant_title)}" data-popover-trigger data-defect-inventory="${item.id}">&#9873; Defect</button></div>`
-                                : `<button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${item.id}" data-restore-defected="${item.id}">Restore</button>`
+                                ? `<div class="action-wrap"><button class="btn btn-ghost btn-sm btn-defect" type="button" data-id="${escapeHtml(item.id)}" data-product="${escapeHtml(item.product_title)}" data-variant="${escapeHtml(item.variant_title)}" data-popover-trigger data-defect-inventory="${escapeHtml(item.id)}">&#9873; Defect</button></div>`
+                                : `<button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${escapeHtml(item.id)}" data-restore-defected="${escapeHtml(item.id)}">Restore</button>`
                             }
-                            <button class="btn btn-ghost btn-sm btn-delete-inv" type="button" data-id="${item.id}" data-delete-inventory="${item.id}">Delete</button>
+                            <button class="btn btn-ghost btn-sm btn-delete-inv" type="button" data-id="${escapeHtml(item.id)}" data-delete-inventory="${escapeHtml(item.id)}">Delete</button>
                           </div>
                         `
                         : '&mdash;'
@@ -661,7 +711,7 @@ function renderDefectedRows(rows, canWrite) {
                     canWrite
                       ? `
                         <td class="col-check">
-                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${item.id}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
+                          <input type="checkbox" class="row-check inv-row-check" data-inv-id="${escapeHtml(item.id)}" ${selectedInventoryIds.has(item.id) ? 'checked' : ''} />
                         </td>
                       `
                       : ''
@@ -679,7 +729,7 @@ function renderDefectedRows(rows, canWrite) {
                     Defected ${defectDate}${defectReason ? ` &bull; ${escapeHtml(defectReason)}` : ''}
                   </td>
                   <td class="col-actions">
-                    <button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${item.id}" data-restore-defected="${item.id}">
+                    <button class="btn btn-ghost btn-sm btn-restore-defect" type="button" data-id="${escapeHtml(item.id)}" data-restore-defected="${escapeHtml(item.id)}">
                       Restore to Inventory
                     </button>
                   </td>
@@ -695,6 +745,10 @@ function renderDefectedRows(rows, canWrite) {
 }
 
 export async function renderInventoryView(container) {
+  if (isModalOpen()) {
+    return {};
+  }
+
   ensurePopoverDismissal();
   pruneSelectedInventoryIds();
 
@@ -730,6 +784,7 @@ export async function renderInventoryView(container) {
       </div>
 
       ${renderInventoryTabs(counts)}
+      ${renderInventoryStats()}
 
       ${
         rows.length
@@ -768,7 +823,10 @@ export async function renderInventoryView(container) {
       danger: true,
       onConfirm: async () => {
         try {
-          await deleteInventoryItems(allIds, state.currentUser.id);
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
+          await deleteInventoryItems(allIds, userId);
           selectedInventoryIds.clear();
           showToast(`All ${allIds.length} items deleted.`, 'success');
           renderInventoryView(container);
@@ -852,7 +910,10 @@ export async function renderInventoryView(container) {
       if (!item) return;
 
       try {
-        await revertDefected(item.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await revertDefected(item.id, userId);
         showToast('Item restored to inventory.', 'success');
         renderInventoryView(container);
       } catch (error) {
@@ -876,7 +937,10 @@ export async function renderInventoryView(container) {
       if (!confirmed) return;
 
       try {
-        await deleteInventoryItem(item.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await deleteInventoryItem(item.id, userId);
         showToast('Inventory item deleted.', 'success');
         renderInventoryView(container);
       } catch (error) {
@@ -897,7 +961,10 @@ export async function renderInventoryView(container) {
       label: `${selectedIds.length} selected item${selectedIds.length === 1 ? '' : 's'}`,
       onConfirm: async () => {
         try {
-          await deleteInventoryItems(selectedIds, state.currentUser.id);
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
+          await deleteInventoryItems(selectedIds, userId);
           selectedInventoryIds.clear();
           showToast(`${selectedIds.length} items deleted.`, 'success');
           renderInventoryView(container);

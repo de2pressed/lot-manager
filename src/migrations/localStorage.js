@@ -33,7 +33,8 @@ function parseJson(raw) {
 
   try {
     return JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    console.warn('Ignoring invalid legacy localStorage payload.', error);
     return null;
   }
 }

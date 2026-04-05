@@ -105,7 +105,9 @@ function buildPlatformBreakdown() {
     groups.set(key, (groups.get(key) || 0) + Number(sale.qty_sold || 0));
   });
 
-  return Array.from(groups.entries()).map(([label, value]) => ({ label, value }));
+  return Array.from(groups.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((left, right) => right.value - left.value);
 }
 
 function initCharts() {
@@ -116,13 +118,33 @@ function initCharts() {
   }
 
   window.Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
-  window.Chart.defaults.font.size = 11;
-  window.Chart.defaults.color = '#666666';
+  window.Chart.defaults.font.size = 10;
+  window.Chart.defaults.color = '#444444';
+  window.Chart.defaults.layout = window.Chart.defaults.layout || {};
+  window.Chart.defaults.layout.padding = 0;
 
   const monthlyRevenue = buildMonthlyRevenue();
   const cumulativeProfit = buildCumulativeProfit();
   const topProducts = buildTopProducts();
   const platformBreakdown = buildPlatformBreakdown();
+  const sharedTooltip = {
+    backgroundColor: '#141414',
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    titleColor: '#f0f0f0',
+    bodyColor: '#808080',
+    padding: { x: 12, y: 8 },
+    cornerRadius: 8,
+    titleFont: {
+      family: "'DM Sans', system-ui, sans-serif",
+      size: 11,
+      weight: '600'
+    },
+    bodyFont: {
+      family: "'DM Sans', system-ui, sans-serif",
+      size: 11
+    }
+  };
 
   const chartConfigs = [
     {
@@ -135,15 +157,42 @@ function initCharts() {
             {
               label: 'Revenue',
               data: monthlyRevenue.map((entry) => entry.total),
-              backgroundColor: 'rgba(0, 230, 118, 0.20)',
+              backgroundColor: 'rgba(0, 230, 118, 0.15)',
               borderColor: '#00e676',
               borderWidth: 1.5,
-              borderRadius: 4,
-              borderSkipped: false
+              borderRadius: 6,
+              borderSkipped: false,
+              barThickness: 28
             }
           ]
         },
-        options: baseChartOptions()
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...sharedTooltip,
+              callbacks: {
+                label: (ctx) => formatCurrency(ctx.parsed.y)
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: {
+                color: '#444444',
+                font: { size: 10 },
+                maxRotation: 0
+              }
+            },
+            y: {
+              display: false
+            }
+          }
+        }
       }
     },
     {
@@ -154,19 +203,48 @@ function initCharts() {
           labels: cumulativeProfit.map((entry) => entry.label),
           datasets: [
             {
-              label: 'Cumulative Profit',
+              label: 'Profit',
               data: cumulativeProfit.map((entry) => entry.value),
-              borderColor: '#3d9eff',
-              backgroundColor: 'rgba(61, 158, 255, 0.08)',
-              tension: 0.35,
-              fill: true,
+              borderColor: '#00e676',
+              borderWidth: 1.5,
               pointRadius: 3,
-              pointBackgroundColor: '#3d9eff',
-              borderWidth: 1.5
+              pointHoverRadius: 3,
+              pointBackgroundColor: '#00e676',
+              pointBorderColor: '#080808',
+              pointBorderWidth: 1.5,
+              tension: 0.35,
+              fill: false
             }
           ]
         },
-        options: baseChartOptions()
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...sharedTooltip,
+              callbacks: {
+                label: (ctx) => formatCurrency(ctx.parsed.y)
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: {
+                color: '#444444',
+                font: { size: 10 },
+                maxRotation: 45,
+                maxTicksLimit: 8
+              }
+            },
+            y: {
+              display: false
+            }
+          }
+        }
       }
     },
     {
@@ -179,16 +257,40 @@ function initCharts() {
             {
               label: 'Units Sold',
               data: topProducts.map((entry) => entry.value),
-              backgroundColor: 'rgba(240, 165, 0, 0.20)',
-              borderColor: '#f0a500',
-              borderWidth: 1.5,
-              borderRadius: 4
+              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+              borderColor: 'rgba(255, 255, 255, 0.25)',
+              borderWidth: 1,
+              borderRadius: 4,
+              borderSkipped: false,
+              barThickness: 18
             }
           ]
         },
         options: {
-          ...baseChartOptions(),
-          indexAxis: 'y'
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...sharedTooltip
+            }
+          },
+          scales: {
+            x: { display: false },
+            y: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: {
+                color: '#808080',
+                font: { size: 11 },
+                callback(value) {
+                  const label = this.getLabelForValue(value);
+                  return label.length > 22 ? `${label.slice(0, 22)}…` : label;
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -201,22 +303,45 @@ function initCharts() {
           datasets: [
             {
               data: platformBreakdown.map((entry) => entry.value),
-              backgroundColor: [
-                'rgba(0, 230, 118, 0.7)',
-                'rgba(61, 158, 255, 0.7)',
-                'rgba(232, 160, 32, 0.7)',
-                'rgba(240, 62, 62, 0.7)',
-                'rgba(128, 128, 128, 0.5)'
-              ],
+              backgroundColor: platformBreakdown.map((_, index) =>
+                index === 0
+                  ? 'rgba(0, 230, 118, 0.80)'
+                  : index === 1
+                    ? 'rgba(255, 255, 255, 0.20)'
+                    : index === 2
+                      ? 'rgba(255, 255, 255, 0.12)'
+                      : index === 3
+                        ? 'rgba(255, 255, 255, 0.07)'
+                        : 'rgba(255, 255, 255, 0.04)'
+              ),
               borderColor: '#080808',
-              borderWidth: 3
+              borderWidth: 3,
+              hoverOffset: 4
             }
           ]
         },
         options: {
-          ...baseChartOptions(),
-          cutout: '72%',
-          scales: {}
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '78%',
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom',
+              labels: {
+                color: '#808080',
+                font: { size: 11 },
+                boxWidth: 8,
+                boxHeight: 8,
+                padding: 12,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            tooltip: {
+              ...sharedTooltip
+            }
+          }
         }
       }
     }
@@ -227,82 +352,6 @@ function initCharts() {
     if (!canvas) return;
     chartInstances.push(new window.Chart(canvas, config));
   });
-}
-
-function baseChartOptions() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      tooltip: {
-        backgroundColor: '#141414',
-        borderColor: 'rgba(255,255,255,0.08)',
-        borderWidth: 1,
-        titleColor: '#f0f0f0',
-        bodyColor: '#808080',
-        padding: 10,
-        titleFont: {
-          family: "'DM Sans', sans-serif",
-          size: 12,
-          weight: '600'
-        },
-        bodyFont: {
-          family: "'DM Sans', sans-serif",
-          size: 11
-        },
-        cornerRadius: 8
-      },
-      legend: {
-        labels: {
-          color: '#666666',
-          font: {
-            family: "'DM Sans', sans-serif",
-            size: 11,
-            weight: '500'
-          },
-          boxWidth: 10,
-          boxHeight: 10,
-          padding: 16,
-          usePointStyle: true,
-          pointStyle: 'circle'
-        }
-      }
-    },
-    scales: {
-      x: {
-        ticks: {
-          color: '#555',
-          font: {
-            family: "'DM Sans', sans-serif",
-            size: 10
-          }
-        },
-        grid: {
-          color: 'rgba(255,255,255,0.04)',
-          drawBorder: false
-        },
-        border: {
-          display: false
-        }
-      },
-      y: {
-        ticks: {
-          color: '#555',
-          font: {
-            family: "'DM Sans', sans-serif",
-            size: 10
-          }
-        },
-        grid: {
-          color: 'rgba(255,255,255,0.04)',
-          drawBorder: false
-        },
-        border: {
-          display: false
-        }
-      }
-    }
-  };
 }
 
 function metricCard(label, value, tone = '') {
@@ -338,7 +387,7 @@ export async function renderDashboardView(container) {
         ${metricCard('Low Stock Alerts', `${metrics.lowStockAlerts}`, metrics.lowStockAlerts ? 'warning' : '')}
       </div>
 
-      <div class="dashboard-grid">
+      <div class="charts-grid">
         <article class="chart-card">
           <div class="chart-header">
             <h3 class="chart-title">Monthly Revenue</h3>

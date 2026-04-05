@@ -14,3 +14,14 @@ export function guardRole(roles) {
   window.location.hash = '#/dashboard';
   return false;
 }
+
+export function requireCurrentUser(message = 'Your session is no longer active. Please sign in again.') {
+  const userId = state.currentUser?.id ?? null;
+
+  if (!userId) {
+    showToast(message, 'error');
+    return null;
+  }
+
+  return userId;
+}

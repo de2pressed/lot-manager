@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { guardRole } from '../utils/access.js';
+import { guardRole, requireCurrentUser } from '../utils/access.js';
 import { $, $$ } from '../utils/dom.js';
 import { ROLE_OPTIONS } from '../utils/constants.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
@@ -58,6 +58,9 @@ function openCreateUserModal(container) {
         event.preventDefault();
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           await createUserAccount(
             {
               email: $('#new-email', bodyTarget).value.trim(),
@@ -65,7 +68,7 @@ function openCreateUserModal(container) {
               password: $('#new-password', bodyTarget).value,
               role: $('#new-role', bodyTarget).value
             },
-            state.currentUser.id
+            userId
           );
 
           const profiles = await fetchProfiles();
@@ -124,12 +127,12 @@ export async function renderAdminView(container) {
                         <td>${escapeHtml(profile.username)}</td>
                         <td>
                           ${
-                            profile.id === state.currentUser.id
+                            profile.id === state.currentUser?.id
                               ? `<span class="badge badge-info">${escapeHtml(profile.role)}</span>`
-                              : `<select class="inline-select" data-profile-role="${profile.id}">
+                              : `<select class="inline-select" data-profile-role="${escapeHtml(profile.id)}">
                                   ${ROLE_OPTIONS.map(
                                     (role) =>
-                                      `<option value="${role}" ${role === profile.role ? 'selected' : ''}>${role}</option>`
+                                      `<option value="${escapeHtml(role)}" ${role === profile.role ? 'selected' : ''}>${escapeHtml(role)}</option>`
                                   ).join('')}
                                 </select>`
                           }
@@ -137,9 +140,9 @@ export async function renderAdminView(container) {
                         <td>${formatDateTime(profile.created_at)}</td>
                         <td>
                           ${
-                            profile.id === state.currentUser.id
+                            profile.id === state.currentUser?.id
                               ? '<span class="muted-copy">Current user</span>'
-                              : `<button class="button button-danger button-small" type="button" data-delete-user="${profile.id}">Delete</button>`
+                              : `<button class="button button-danger button-small" type="button" data-delete-user="${escapeHtml(profile.id)}">Delete</button>`
                           }
                         </td>
                       </tr>
@@ -197,7 +200,10 @@ export async function renderAdminView(container) {
   $$('[data-profile-role]', container).forEach((select) => {
     select.addEventListener('change', async () => {
       try {
-        await updateProfileRole(select.dataset.profileRole, select.value, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await updateProfileRole(select.dataset.profileRole, select.value, userId);
         showToast('Role updated.', 'success');
         renderAdminView(container);
       } catch (error) {
@@ -221,7 +227,10 @@ export async function renderAdminView(container) {
       if (!confirmed) return;
 
       try {
-        await deleteUserAccount(target.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await deleteUserAccount(target.id, userId);
         const profiles = await fetchProfiles();
         state.setCollection('profiles', profiles);
         showToast('User deleted.', 'success');

@@ -1,5 +1,6 @@
 import { ROUTES } from '../router.js';
 import { state } from '../state.js';
+import { escapeHtml } from '../utils/format.js';
 
 function getRouteMeta(routeKey) {
   switch (routeKey) {
@@ -28,8 +29,8 @@ export function renderSidebar(activeRoute) {
     </div>
     <div class="sidebar-mobile-user">
       <p class="sidebar-mobile-label">Signed in as</p>
-      <strong class="sidebar-mobile-email">${username}</strong>
-      <span class="sidebar-mobile-role">${role}</span>
+      <strong class="sidebar-mobile-email">${escapeHtml(username)}</strong>
+      <span class="sidebar-mobile-role">${escapeHtml(role)}</span>
       <button class="button button-secondary sidebar-mobile-signout" type="button" data-sidebar-signout>
         Sign Out
       </button>
@@ -48,7 +49,7 @@ export function renderSidebar(activeRoute) {
         .join('')}
     </nav>
     <div class="sidebar-footer">
-      <span class="role-chip">${role}</span>
+      <span class="role-chip">${escapeHtml(role)}</span>
       <span class="live-chip">Realtime ready</span>
       <span class="version-chip">v1.07</span>
     </div>

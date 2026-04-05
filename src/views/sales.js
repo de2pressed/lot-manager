@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { hasRole } from '../utils/access.js';
+import { hasRole, requireCurrentUser } from '../utils/access.js';
 import { $, $$ } from '../utils/dom.js';
 import {
   escapeHtml,
@@ -9,7 +9,7 @@ import {
   inputDateToIso
 } from '../utils/format.js';
 import { SALE_PLATFORMS } from '../utils/constants.js';
-import { openModal, confirmModal } from '../ui/modal.js';
+import { openModal, confirmModal, isModalOpen } from '../ui/modal.js';
 import { showToast } from '../ui/toast.js';
 import { recordSale, revertSales } from '../services/sales.service.js';
 
@@ -77,7 +77,7 @@ function openSellModal(item) {
         </label>
         <label class="field">
           <span>Sale Price (per unit)</span>
-          <input id="sell-price" type="number" min="0" step="0.01" required />
+          <input id="sell-price" type="number" min="0" step="0.01" placeholder="0 for free" required />
         </label>
         <label class="field">
           <span>Platform</span>
@@ -126,6 +126,9 @@ function openSellModal(item) {
 
       const handleSubmit = async () => {
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const qtySold = Number($('#sell-qty', bodyTarget).value);
           const salePrice = Number($('#sell-price', bodyTarget).value);
           const dateValue = $('#sell-date', bodyTarget).value;
@@ -134,8 +137,8 @@ function openSellModal(item) {
             throw new Error('Enter a valid sold quantity.');
           }
 
-          if (Number.isNaN(salePrice) || salePrice <= 0) {
-            throw new Error('Enter a valid sale price greater than 0.');
+          if (Number.isNaN(salePrice) || salePrice < 0) {
+            throw new Error('Enter a valid sale price (0 for free items).');
           }
 
           if (!dateValue) {
@@ -154,7 +157,7 @@ function openSellModal(item) {
               notes: $('#sell-notes', bodyTarget).value.trim(),
               buyerName: $('#sell-buyer-name', bodyTarget).value.trim()
             },
-            state.currentUser.id
+            userId
           );
 
           close('saved');
@@ -206,7 +209,10 @@ function openRevertPopover(trigger, sale) {
     }
 
     try {
-      const revertedCount = await revertSales([sale.id], state.currentUser.id);
+      const userId = requireCurrentUser();
+      if (!userId) return;
+
+      const revertedCount = await revertSales([sale.id], userId);
       popover.remove();
       showToast(revertedCount ? 'Sale reverted.' : 'No sale was reverted.', 'success');
       renderSalesView(document.getElementById('view-root'));
@@ -234,7 +240,7 @@ function renderToSellRows() {
   }
 
   return `
-    <div class="table-card">
+      <div class="table-card">
       <table class="data-table">
         <thead>
           <tr>
@@ -255,11 +261,11 @@ function renderToSellRows() {
                   <td>${escapeHtml(item.variant_title)}</td>
                   <td>${item.quantity}</td>
                   <td>${formatCurrency(item.buy_price)}</td>
-                  <td><span class="status-badge status-${item.status}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
+                  <td><span class="status-badge status-${escapeHtml(item.status)}">${escapeHtml(item.status.replace('_', ' '))}</span></td>
                   <td>
                     ${
                       hasRole(['admin', 'manager'])
-                        ? `<button class="button button-ghost button-small" data-sell-id="${item.id}">Sell</button>`
+                        ? `<button class="button button-ghost button-small" data-sell-id="${escapeHtml(item.id)}">Sell</button>`
                         : '&mdash;'
                     }
                   </td>
@@ -350,8 +356,8 @@ function renderSoldRows() {
                     <input
                       type="checkbox"
                       class="row-check sold-row-check"
-                      data-sale-id="${sale.id}"
-                      data-sale-select="${sale.id}"
+                      data-sale-id="${escapeHtml(sale.id)}"
+                      data-sale-select="${escapeHtml(sale.id)}"
                       ${selectedSaleIds.has(sale.id) ? 'checked' : ''}
                     />
                   </td>
@@ -373,12 +379,12 @@ function renderSoldRows() {
                       <button
                         class="btn btn-ghost btn-sm btn-revert-sale"
                         type="button"
-                        data-sale-id="${sale.id}"
+                        data-sale-id="${escapeHtml(sale.id)}"
                         data-product="${escapeHtml(sale.product_title)}"
                         data-variant="${escapeHtml(sale.variant_title)}"
                         data-qty="${sale.qty_sold}"
                         data-popover-trigger
-                        data-sale-revert="${sale.id}"
+                        data-sale-revert="${escapeHtml(sale.id)}"
                       >
                         Revert
                       </button>
@@ -427,7 +433,10 @@ async function handleBatchRevert() {
   if (!confirmed) return;
 
   try {
-    const revertedCount = await revertSales([...selectedSaleIds], state.currentUser.id);
+    const userId = requireCurrentUser();
+    if (!userId) return;
+
+    const revertedCount = await revertSales([...selectedSaleIds], userId);
     selectedSaleIds.clear();
     closeAllPopovers();
     showToast(revertedCount ? 'Selected sales reverted.' : 'No sales were reverted.', 'success');
@@ -438,6 +447,10 @@ async function handleBatchRevert() {
 }
 
 export async function renderSalesView(container) {
+  if (isModalOpen()) {
+    return {};
+  }
+
   ensurePopoverDismissal();
   pruneSelectedSaleIds();
 

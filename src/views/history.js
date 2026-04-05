@@ -1,10 +1,17 @@
 import { state } from '../state.js';
+import { $ } from '../utils/dom.js';
 import { escapeHtml, formatCurrency, formatDateTime } from '../utils/format.js';
 
 const ACTIVITY_LABELS = {
   sale_reverted: 'Sale Reverted',
   item_defected: 'Marked as Defected',
   defect_reverted: 'Restored from Defected'
+};
+
+let historyFilters = {
+  from: '',
+  to: '',
+  username: ''
 };
 
 function formatActivityType(type = '') {
@@ -19,8 +26,84 @@ function formatActivityType(type = '') {
     .join(' ');
 }
 
+function getFilteredLog() {
+  return state.log.filter((entry) => {
+    const createdAt = entry.created_at ? new Date(entry.created_at) : null;
+    const entryDate =
+      createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : '';
+
+    if (historyFilters.from && entryDate < historyFilters.from) return false;
+    if (historyFilters.to && entryDate > historyFilters.to) return false;
+    if (historyFilters.username && entry.username !== historyFilters.username) return false;
+
+    return true;
+  });
+}
+
+function renderHistoryFilters() {
+  const usernames = [
+    ...new Set([
+      ...state.profiles.map((profile) => profile.username).filter(Boolean),
+      ...state.log.map((entry) => entry.username).filter(Boolean)
+    ])
+  ].sort((left, right) => left.localeCompare(right));
+
+  if (historyFilters.username && !usernames.includes(historyFilters.username)) {
+    usernames.unshift(historyFilters.username);
+  }
+
+  const hasActiveFilter = Boolean(historyFilters.from || historyFilters.to || historyFilters.username);
+
+  return `
+    <div class="history-filter-bar">
+      <div class="filter-group">
+        <label class="field-label">From</label>
+        <input
+          type="date"
+          id="history-filter-from"
+          class="filter-date-input"
+          value="${historyFilters.from}"
+        >
+      </div>
+      <div class="filter-group">
+        <label class="field-label">To</label>
+        <input
+          type="date"
+          id="history-filter-to"
+          class="filter-date-input"
+          value="${historyFilters.to}"
+        >
+      </div>
+      <div class="filter-group">
+        <label class="field-label">User</label>
+        <select id="history-filter-user">
+          <option value="">All users</option>
+          ${usernames
+            .map(
+              (username) => `
+                <option value="${escapeHtml(username)}" ${historyFilters.username === username ? 'selected' : ''}>
+                  ${escapeHtml(username)}
+                </option>
+              `
+            )
+            .join('')}
+        </select>
+      </div>
+      ${
+        hasActiveFilter
+          ? `
+            <button class="button button-secondary button-small" id="history-clear-filters" type="button">
+              Clear Filters
+            </button>
+          `
+          : ''
+      }
+    </div>
+  `;
+}
+
 export async function renderHistoryView(container) {
-  const items = state.log;
+  const filtered = getFilteredLog();
 
   container.innerHTML = `
     <section class="page-section">
@@ -33,10 +116,14 @@ export async function renderHistoryView(container) {
       </div>
 
       ${
-        items.length
+        state.log.length
           ? `
-            <div class="history-feed">
-              ${items
+            ${renderHistoryFilters()}
+            ${
+              filtered.length
+                ? `
+                  <div class="history-feed">
+                    ${filtered
                 .map(
                   (item) => `
                     <article class="history-card">
@@ -53,7 +140,15 @@ export async function renderHistoryView(container) {
                   `
                 )
                 .join('')}
-            </div>
+                  </div>
+                `
+                : `
+                  <div class="empty-state-card">
+                    <h3>No matching entries</h3>
+                    <p>Try adjusting the date range or user filter.</p>
+                  </div>
+                `
+            }
           `
           : `
             <div class="empty-state-card">
@@ -64,6 +159,39 @@ export async function renderHistoryView(container) {
       }
     </section>
   `;
+
+  $('#history-filter-from', container)?.addEventListener('change', (event) => {
+    historyFilters = {
+      ...historyFilters,
+      from: event.target.value
+    };
+    renderHistoryView(container);
+  });
+
+  $('#history-filter-to', container)?.addEventListener('change', (event) => {
+    historyFilters = {
+      ...historyFilters,
+      to: event.target.value
+    };
+    renderHistoryView(container);
+  });
+
+  $('#history-filter-user', container)?.addEventListener('change', (event) => {
+    historyFilters = {
+      ...historyFilters,
+      username: event.target.value
+    };
+    renderHistoryView(container);
+  });
+
+  $('#history-clear-filters', container)?.addEventListener('click', () => {
+    historyFilters = {
+      from: '',
+      to: '',
+      username: ''
+    };
+    renderHistoryView(container);
+  });
 
   return {};
 }

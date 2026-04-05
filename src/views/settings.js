@@ -91,7 +91,8 @@ async function restoreBackup(jsonText) {
 
   try {
     payload = JSON.parse(jsonText);
-  } catch {
+  } catch (error) {
+    console.warn('Backup import failed while parsing JSON.', error);
     throw new Error('The selected file is not valid JSON.');
   }
 
@@ -132,8 +133,10 @@ async function restoreBackup(jsonText) {
     }
   }
 
+  const userId = state.currentUser?.id ?? null;
+
   await logActivity({
-    userId: state.currentUser.id,
+    userId,
     type: 'backup_imported',
     description: 'Imported JSON backup into the workspace'
   });
@@ -181,7 +184,8 @@ async function triggerBackupImport() {
 
 async function handleShopifySync(container) {
   try {
-    const syncedCount = await syncShopifyProducts(state.currentUser.id);
+    const userId = state.currentUser?.id ?? null;
+    const syncedCount = await syncShopifyProducts(userId);
     showToast(`Synced ${syncedCount} Shopify products.`, 'success');
     renderSettingsView(container);
   } catch (error) {

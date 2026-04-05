@@ -87,7 +87,7 @@ create table public.sales (
   variant_title text not null,
   buy_price numeric(10,2) not null,
   sale_price numeric(10,2) not null,
-  profit numeric(10,2) generated always as (sale_price - buy_price) stored,
+  profit numeric(10,2) not null default 0,
   qty_sold integer not null default 1 check (qty_sold > 0),
   platform text default 'Direct' check (
     platform in ('Direct', 'Instagram DM', 'WhatsApp', 'Depop', 'Other')
@@ -110,6 +110,17 @@ create table public.activity_log (
   ref_type text,
   created_at timestamptz default now()
 );
+
+create or replace function set_sales_profit()
+returns trigger as $$
+begin
+  new.profit = new.sale_price - new.buy_price;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger sales_profit_update before insert or update on public.sales
+  for each row execute function set_sales_profit();
 
 create or replace function update_updated_at()
 returns trigger as $$

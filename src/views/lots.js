@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { hasRole } from '../utils/access.js';
+import { hasRole, requireCurrentUser } from '../utils/access.js';
 import { $, $$ } from '../utils/dom.js';
 import {
   downloadBlob,
@@ -9,7 +9,7 @@ import {
   slugify
 } from '../utils/format.js';
 import { buildVariantTitle, findVariant, getProductVariants } from '../utils/products.js';
-import { confirmModal, openModal } from '../ui/modal.js';
+import { confirmModal, isModalOpen, openModal } from '../ui/modal.js';
 import { showToast } from '../ui/toast.js';
 import {
   addLotItem,
@@ -97,12 +97,15 @@ function openCreateLotModal() {
         event.preventDefault();
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           await createLot(
             {
               name: $('#lot-name', bodyTarget).value.trim(),
               max_items: Number($('#lot-capacity', bodyTarget).value)
             },
-            state.currentUser.id
+            userId
           );
 
           close('saved');
@@ -139,7 +142,7 @@ function openLegacyLotItemModal(lot, existingItem = null) {
             ${state.products
               .map(
                 (product) => `
-                  <option value="${product.id}" ${product.id === initialProduct.id ? 'selected' : ''}>
+                  <option value="${escapeHtml(product.id)}" ${product.id === initialProduct.id ? 'selected' : ''}>
                     ${escapeHtml(product.title)}
                   </option>
                 `
@@ -202,16 +205,19 @@ function openLegacyLotItemModal(lot, existingItem = null) {
         event.preventDefault();
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const product =
             state.products.find((entry) => entry.id === productSelect.value) ?? initialProduct;
           const variant = findVariant(product, variantSelect.value) ?? getProductVariants(product)[0];
           const payload = buildLotItemPayload(lot, product, variant, bodyTarget, existingItem);
 
           if (existingItem) {
-            await updateLotItem(existingItem.id, payload, state.currentUser.id);
+            await updateLotItem(existingItem.id, payload, userId);
             showToast('Lot item updated.', 'success');
           } else {
-            await addLotItem(payload, state.currentUser.id);
+            await addLotItem(payload, userId);
             showToast('Lot item added.', 'success');
           }
 
@@ -247,7 +253,7 @@ function openStagedLotItemModal(lot) {
           ${state.products
             .map(
               (product) => `
-                <option value="${product.id}">
+                <option value="${escapeHtml(product.id)}">
                   ${escapeHtml(product.title)}
                 </option>
               `
@@ -336,17 +342,17 @@ function openStagedLotItemModal(lot) {
       const renderVariantRow = (variant, product, stagedQty) => {
         const vid = variantKeyFor(product, variant);
         return `
-          <div class="variant-row" data-variant-id="${vid}">
+          <div class="variant-row" data-variant-id="${escapeHtml(vid)}">
             <div class="variant-info">
               <span class="variant-title">${escapeHtml(buildVariantTitle(variant))}</span>
               ${variant.sku ? `<span class="variant-sku">${escapeHtml(variant.sku)}</span>` : ''}
             </div>
-            <div class="variant-stepper" data-variant-id="${vid}">
+            <div class="variant-stepper" data-variant-id="${escapeHtml(vid)}">
               <button
                 class="stepper-btn stepper-dec ${stagedQty === 0 ? 'stepper-hidden' : ''}"
                 type="button"
                 data-action="dec"
-                data-variant-id="${vid}"
+                data-variant-id="${escapeHtml(vid)}"
               >−</button>
               <span class="stepper-count ${stagedQty === 0 ? 'stepper-hidden' : ''}">
                 ${stagedQty || ''}
@@ -355,11 +361,11 @@ function openStagedLotItemModal(lot) {
                 class="stepper-btn stepper-inc ${stagedQty > 0 ? 'stepper-active' : ''}"
                 type="button"
                 data-action="inc"
-                data-variant-id="${vid}"
-                data-variant-real-id="${variant.id ?? ''}"
+                data-variant-id="${escapeHtml(vid)}"
+                data-variant-real-id="${escapeHtml(variant.id ?? '')}"
                 data-variant-title="${escapeHtml(buildVariantTitle(variant))}"
                 data-product-title="${escapeHtml(product.title)}"
-                data-product-id="${product.id}"
+                data-product-id="${escapeHtml(product.id)}"
                 data-sku="${escapeHtml(variant.sku || '')}"
                 data-color="${escapeHtml(variant.color || '')}"
                 data-size="${escapeHtml(variant.size || '')}"
@@ -406,14 +412,14 @@ function openStagedLotItemModal(lot) {
         stagedList.innerHTML = [...staged.entries()]
           .map(
             ([vid, item]) => `
-              <div class="staged-row" data-vid="${vid}">
+              <div class="staged-row" data-vid="${escapeHtml(vid)}">
                 <div class="staged-info">
                   <span class="staged-product">${escapeHtml(item.productTitle)}</span>
                   <span class="staged-variant">${escapeHtml(item.variantTitle)}</span>
                 </div>
                 <div class="staged-right">
                   <span class="staged-qty">× ${item.qty}</span>
-                  <button class="staged-remove" type="button" data-vid="${vid}" title="Remove">✕</button>
+                  <button class="staged-remove" type="button" data-vid="${escapeHtml(vid)}" title="Remove">✕</button>
                 </div>
               </div>
             `
@@ -501,6 +507,9 @@ function openStagedLotItemModal(lot) {
         if (!confirmAdd || !staged.size) return;
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const items = [...staged.values()];
           await Promise.all(
             items.map((item) =>
@@ -518,7 +527,7 @@ function openStagedLotItemModal(lot) {
                   qty: item.qty,
                   buy_price: Number(buyPriceInput.value || item.buyPrice || 0)
                 },
-                state.currentUser.id
+                userId
               )
             )
           );
@@ -639,7 +648,7 @@ function renderLotCard(lot) {
           <h3>${escapeHtml(lot.name)}</h3>
           <p class="muted-copy">${total} / ${lot.max_items} items</p>
         </div>
-        <span class="status-badge status-${displayedStatus}">${escapeHtml(displayedStatus)}</span>
+        <span class="status-badge status-${escapeHtml(displayedStatus)}">${escapeHtml(displayedStatus)}</span>
       </div>
       <div class="lot-progress">
         <div class="lot-progress-bar"><span style="width:${progress}%"></span></div>
@@ -661,8 +670,8 @@ function renderLotCard(lot) {
                         ${
                           canWrite
                             ? `
-                              <button class="button button-ghost button-small" type="button" data-edit-lot-item="${item.id}" data-lot-id="${lot.id}">Edit</button>
-                              <button class="button button-ghost button-small" type="button" data-delete-lot-item="${item.id}" data-lot-id="${lot.id}">Remove</button>
+                              <button class="button button-ghost button-small" type="button" data-edit-lot-item="${escapeHtml(item.id)}" data-lot-id="${escapeHtml(lot.id)}">Edit</button>
+                              <button class="button button-ghost button-small" type="button" data-delete-lot-item="${escapeHtml(item.id)}" data-lot-id="${escapeHtml(lot.id)}">Remove</button>
                             `
                             : ''
                         }
@@ -677,18 +686,18 @@ function renderLotCard(lot) {
       <div class="card-actions">
         ${
           canWrite
-            ? `<button class="button button-primary button-small" type="button" data-add-lot-item="${lot.id}">Add Item</button>`
+            ? `<button class="button button-primary button-small" type="button" data-add-lot-item="${escapeHtml(lot.id)}">Add Item</button>`
             : ''
         }
-        <button class="button button-secondary button-small" type="button" data-export-lot="${lot.id}">Export PNG</button>
+        <button class="button button-secondary button-small" type="button" data-export-lot="${escapeHtml(lot.id)}">Export PNG</button>
         ${
           canRepush
             ? `
               <button
                 class="button button-secondary button-small btn-repush"
                 type="button"
-                data-repush-lot="${lot.id}"
-                data-lot-id="${lot.id}"
+                data-repush-lot="${escapeHtml(lot.id)}"
+                data-lot-id="${escapeHtml(lot.id)}"
                 data-lot-name="${escapeHtml(lot.name)}"
                 data-lot-items="${lot.lot_items?.length ?? 0}"
               >
@@ -700,7 +709,7 @@ function renderLotCard(lot) {
                 <button
                   class="button button-primary button-small"
                   type="button"
-                  data-push-lot="${lot.id}"
+                  data-push-lot="${escapeHtml(lot.id)}"
                 >
                   Push to Inventory
                 </button>
@@ -711,7 +720,7 @@ function renderLotCard(lot) {
         }
         ${
           canWrite
-            ? `<button class="button button-danger button-small" type="button" data-delete-lot="${lot.id}">Delete</button>`
+            ? `<button class="button button-danger button-small" type="button" data-delete-lot="${escapeHtml(lot.id)}">Delete</button>`
             : ''
         }
       </div>
@@ -720,6 +729,10 @@ function renderLotCard(lot) {
 }
 
 export async function renderLotsView(container) {
+  if (isModalOpen()) {
+    return {};
+  }
+
   const canWriteLots = hasRole(['admin', 'manager', 'ops']);
 
   container.innerHTML = `
@@ -783,7 +796,10 @@ export async function renderLotsView(container) {
       if (!confirmed) return;
 
       try {
-        await deleteLotItem(item.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await deleteLotItem(item.id, userId);
         showToast('Lot item removed.', 'success');
         renderLotsView(container);
       } catch (error) {
@@ -807,7 +823,10 @@ export async function renderLotsView(container) {
       if (!confirmed) return;
 
       try {
-        await deleteLot(lot.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await deleteLot(lot.id, userId);
         showToast('Lot deleted.', 'success');
         renderLotsView(container);
       } catch (error) {
@@ -831,7 +850,10 @@ export async function renderLotsView(container) {
       if (!confirmed) return;
 
       try {
-        const result = await pushLotToInventory(lot.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        const result = await pushLotToInventory(lot.id, userId);
         showToast(`Pushed ${result.pushed} inventory rows.`, 'success');
         renderLotsView(container);
       } catch (error) {
@@ -860,7 +882,10 @@ export async function renderLotsView(container) {
       if (!confirmed) return;
 
       try {
-        const result = await repushLot(lot.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        const result = await repushLot(lot.id, userId);
         showToast(`Lot repushed - ${result.pushed} variants added to inventory.`, 'success');
         renderLotsView(container);
       } catch (error) {

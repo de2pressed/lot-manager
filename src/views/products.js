@@ -1,9 +1,9 @@
 import { state } from '../state.js';
-import { hasRole } from '../utils/access.js';
+import { hasRole, requireCurrentUser } from '../utils/access.js';
 import { $, $$ } from '../utils/dom.js';
 import { escapeHtml, formatDateTime } from '../utils/format.js';
 import { buildVariantTitle, getProductVariants } from '../utils/products.js';
-import { confirmModal, openModal } from '../ui/modal.js';
+import { confirmModal, isModalOpen, openModal } from '../ui/modal.js';
 import { showToast } from '../ui/toast.js';
 import {
   createProduct,
@@ -123,6 +123,9 @@ function openProductModal(product = null) {
         event.preventDefault();
 
         try {
+          const userId = requireCurrentUser();
+          if (!userId) return;
+
           const payload = {
             title: $('#product-title', bodyTarget).value.trim(),
             image_url: $('#product-image', bodyTarget).value.trim() || null,
@@ -134,10 +137,10 @@ function openProductModal(product = null) {
           }
 
           if (product) {
-            await updateProduct(product.id, payload, state.currentUser.id);
+            await updateProduct(product.id, payload, userId);
             showToast('Product updated.', 'success');
           } else {
-            await createProduct(payload, state.currentUser.id);
+            await createProduct(payload, userId);
             showToast('Product created.', 'success');
           }
 
@@ -152,6 +155,10 @@ function openProductModal(product = null) {
 }
 
 export async function renderProductsView(container) {
+  if (isModalOpen()) {
+    return {};
+  }
+
   const canWrite = hasRole(['admin', 'manager']);
   const products = state.products.filter(productMatches);
 
@@ -204,8 +211,8 @@ export async function renderProductsView(container) {
                           canWrite
                             ? `
                               <div class="card-actions">
-                                <button class="button button-ghost button-small" type="button" data-edit-product="${product.id}">Edit</button>
-                                <button class="button button-danger button-small" type="button" data-delete-product="${product.id}">Delete</button>
+                                <button class="button button-ghost button-small" type="button" data-edit-product="${escapeHtml(product.id)}">Edit</button>
+                                <button class="button button-danger button-small" type="button" data-delete-product="${escapeHtml(product.id)}">Delete</button>
                               </div>
                             `
                             : ''
@@ -258,7 +265,10 @@ export async function renderProductsView(container) {
       if (!confirmed) return;
 
       try {
-        await deleteProduct(product.id, state.currentUser.id);
+        const userId = requireCurrentUser();
+        if (!userId) return;
+
+        await deleteProduct(product.id, userId);
         showToast('Product deleted.', 'success');
         renderProductsView(container);
       } catch (error) {

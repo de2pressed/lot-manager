@@ -1,4 +1,5 @@
 import { $, setNodeContent } from '../utils/dom.js';
+import { escapeHtml } from '../utils/format.js';
 
 let activeCleanup = [];
 let activeOnClose = null;
@@ -65,8 +66,8 @@ export function openModal({
       <div class="modal-shell ${className}" role="dialog" aria-modal="true" aria-labelledby="shared-modal-title" tabindex="-1">
         <div class="modal-head">
           <div>
-            <h2 id="shared-modal-title">${title}</h2>
-            ${description ? `<p class="modal-description">${description}</p>` : ''}
+            <h2 id="shared-modal-title">${escapeHtml(title)}</h2>
+            ${description ? `<p class="modal-description">${escapeHtml(description)}</p>` : ''}
           </div>
           <button class="icon-button" type="button" data-close-modal aria-label="Close modal">×</button>
         </div>
